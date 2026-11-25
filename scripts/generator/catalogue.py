@@ -10,6 +10,7 @@ Usage:
 """
 import argparse
 import json
+import re
 import sys
 import tempfile
 from pathlib import Path
@@ -31,10 +32,33 @@ TOPIC_NAMES = ("A1.1 Ergonomics; A2.1 User-centred research methods; A2.2 Protot
                "and evaluation")
 
 
+def topic_ids(items):
+    """SL topic ids from whatever Gemini wrote: 'A1.1', 'A1.1 Ergonomics', 'Ergonomics (A1.1)' or 'Ergonomics'."""
+    names = {name.strip().lower(): tid for tid, name in
+             (part.strip().split(" ", 1) for part in TOPIC_NAMES.split(";"))}
+    found = []
+    for item in items:
+        ids = re.findall(r"[ABC]\d\.\d", item) or [names.get(item.strip().lower())]
+        found += [t for t in ids if t in SL_TOPICS and t not in found]
+    return found
+
+
+EXTRACT = ("Extract the case study {ref} ({product}), pages {first}–{last} of this PDF.\n"
+           "- text: copy the case-study (stimulus) text WORD FOR WORD, every sentence, in order, including any "
+           "text in figure labels or bullet lists. Do not summarise, shorten or paraphrase. Do not include the "
+           "question parts themselves.\n"
+           "- data: every table or number in the stimulus, written out as text (or 'none').\n"
+           "- figures: every figure's caption and the PDF page it is on.\n"
+           "- original_questions: a one-line summary of each original question part.\n"
+           "- suits_topics: which of these new-syllabus SL topics the case study could support well, as ids only "
+           "(e.g. A1.1): {topics}.")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--pdf")
     ap.add_argument("--out")
+    ap.add_argument("--fresh", action="store_true", help="redo every case study, not only missing ones")
     args = ap.parse_args()
     cfg = yaml.safe_load((ROOT / "generator.yaml").read_text(encoding="utf-8"))
     from gemini import Gemini
@@ -47,36 +71,46 @@ def main():
         from drive import Drive
         drive = Drive()
         pdf = drive.download(cfg["drive"]["past_papers_pdf"], Path(tempfile.mkdtemp()) / "past_papers.pdf")
-    doc = gem.upload(pdf)
 
+    def load():
+        if args.out:
+            p = Path(args.out)
+            return json.loads(p.read_text(encoding="utf-8")) if p.exists() else []
+        return drive.read_json(cfg["drive"]["reference_folder"], "case_studies.json") or []
+
+    def save(items):
+        """Saved after every case study, so an error part-way through keeps the work done so far."""
+        if args.out:
+            Path(args.out).write_text(json.dumps(items, indent=1, ensure_ascii=False), encoding="utf-8")
+        else:
+            drive.write_json(cfg["drive"]["reference_folder"], "case_studies.json", items)
+
+    out = [] if args.fresh else load()
+    done = {c["reference"] for c in out}
+    if done:
+        print(f"{len(done)} case studies already catalogued; only missing ones will be added (--fresh redoes all)")
+
+    doc = gem.upload(pdf)
     index = gem.ask([doc, "This PDF is a collection of IB Design Technology exam questions, each built on a case "
                      "study (a product or context with text, figures and sometimes data). List every case study "
                      "with its IB reference exactly as printed (e.g. 26M.2.SL.TZ1.6), the product, and the PDF "
                      "page numbers (1 = first page of the file) where it starts and ends."], CaseStudyIndex)
     print(f"found {len(index.case_studies)} case studies")
-    out, seen = [], set()
     for item in index.case_studies:
-        if item.reference in seen:
+        if item.reference in done:
             continue
-        seen.add(item.reference)
-        cs = gem.ask([doc, f"Extract the case study {item.reference} ({item.product}), pages {item.first_page}–"
-                      f"{item.last_page} of this PDF. Give the complete stimulus text with every product fact, any "
-                      "data written out as text, every figure's caption and page, and a one-line summary of each "
-                      "original question part. Then list which of these new-syllabus SL topics the case study "
-                      f"could support well (ids only): {TOPIC_NAMES}."], CaseStudy)
+        done.add(item.reference)
+        cs = gem.ask([doc, EXTRACT.format(ref=item.reference, product=item.product, first=item.first_page,
+                                          last=item.last_page, topics=TOPIC_NAMES)], CaseStudy)
         d = cs.model_dump()
         d["reference"] = item.reference
-        d["suits_topics"] = [t for t in d["suits_topics"] if t in SL_TOPICS]
+        d["suits_topics"] = topic_ids(d["suits_topics"])
         out.append(d)
+        save(out)
         print(f"  {item.reference}: {len(d['text'].split())} words, {len(d['figures'])} figures, "
-              f"topics {', '.join(d['suits_topics'])}")
-    if args.out:
-        Path(args.out).write_text(json.dumps(out, indent=1, ensure_ascii=False), encoding="utf-8")
-        print(f"saved {args.out}")
-    else:
-        drive.write_json(cfg["drive"]["reference_folder"], "case_studies.json", out)
-        print(f"saved {cfg['drive']['reference_folder']}/case_studies.json in Drive "
-              f"({len(out)} case studies; {gem.calls} Gemini calls)")
+              f"topics {', '.join(d['suits_topics']) or 'none'}")
+    where = args.out or f"Drive {cfg['drive']['reference_folder']}/case_studies.json"
+    print(f"saved {len(out)} case studies to {where} ({gem.calls} Gemini calls)")
 
 
 if __name__ == "__main__":

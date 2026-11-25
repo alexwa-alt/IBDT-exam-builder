@@ -209,3 +209,9 @@ def test_drive_oauth_secret_must_be_complete(monkeypatch):
     monkeypatch.setenv("GDRIVE_OAUTH_JSON", json.dumps({"client_id": "id"}))
     with pytest.raises(SystemExit):
         fetch_drive.service()
+
+
+def test_catalogue_topic_ids_accepts_names_and_ids():
+    import catalogue
+    assert catalogue.topic_ids(["A1.1", "B2.1 The design process", "Inclusive design", "Ergonomics (A1.1)",
+                                "A3.2", "nonsense"]) == ["A1.1", "B2.1", "C1.2"]
