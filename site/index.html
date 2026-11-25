@@ -29,7 +29,10 @@
       <h1>IB Design technology · practice-paper builder</h1>
       <p class="muted small" id="bank-info"></p>
     </div>
-    <a href="#" id="logout">Log out</a>
+    <div class="top-actions">
+      <button type="button" id="open-generate" hidden>Generate questions…</button>
+      <a href="#" id="logout">Log out</a>
+    </div>
   </header>
 
   <main class="layout">
@@ -53,6 +56,7 @@
       <fieldset><legend>Unit</legend><div id="f-units" class="checks"></div></fieldset>
       <fieldset><legend>Source</legend><div id="f-source" class="checks"></div></fieldset>
       <fieldset><legend>Status</legend><div id="f-status" class="checks"></div></fieldset>
+      <fieldset><legend>Written by</legend><div id="f-origin" class="checks"></div></fieldset>
       <fieldset><legend>Topic and syllabus statement</legend><div id="f-topics" class="tree"></div></fieldset>
     </aside>
 
@@ -66,6 +70,17 @@
 
     <!-- The paper being built -->
     <aside class="panel paper" aria-label="Your paper">
+      <!-- Review decisions waiting to be sent (staff.js) -->
+      <section id="review-tray" class="review-tray" hidden>
+        <h2>Reviews to send <span id="review-count"></span></h2>
+        <ul id="review-list" class="paper-list"></ul>
+        <label class="field">Your name
+          <input id="reviewer-name" type="text" autocomplete="name" maxlength="60">
+        </label>
+        <button type="button" class="primary wide" id="send-reviews">Send reviews</button>
+        <p class="hint">Saves your decisions to the question bank. The site updates about 5 minutes later.</p>
+        <p id="review-msg" class="msg" role="status"></p>
+      </section>
       <div class="panel-head"><h2>Your paper</h2><button type="button" class="link" id="clear-paper">Clear</button></div>
       <button type="button" class="primary wide" id="specimen">Build a specimen-style paper</button>
       <p class="hint">Picks five 6-mark and two 10-mark questions from the filtered list (50 marks).</p>
@@ -93,8 +108,39 @@
       <button type="button" id="viewer-add" class="primary"></button>
       <button type="button" id="viewer-close" aria-label="Close">✕</button>
     </div>
+    <div id="viewer-review" class="viewer-review" hidden></div>
+    <div id="reject-row" class="reject-row" hidden>
+      <label class="field">Why reject it? (helps Gemini write better questions)
+        <input id="reject-reason" type="text" maxlength="500">
+      </label>
+      <button type="button" class="danger" id="reject-confirm">Reject</button>
+    </div>
   </div>
   <div id="viewer-body" class="viewer-body"></div>
+</dialog>
+
+<!-- Generate questions with Gemini (staff.js) -->
+<dialog id="gen-dialog">
+  <form id="gen-form" class="gen-form">
+    <div class="viewer-head"><h2>Generate questions with Gemini</h2>
+      <button type="button" id="gen-close" aria-label="Close">✕</button></div>
+    <div class="gen-body">
+      <p class="hint">Gemini writes new SL Paper 2 questions from past-paper case studies. They are checked
+        automatically and added as <b>drafts</b>, marked AI-written, for review. Leave a box blank to let the
+        generator choose what the bank needs most.</p>
+      <label class="field">How many <select name="gen-count"><option>1</option><option>2</option><option>3</option>
+        <option>4</option><option>5</option></select></label>
+      <label class="field">Marks <select name="gen-marks"><option value="">Any</option><option>6</option>
+        <option>10</option></select></label>
+      <label class="field">Difficulty <select name="gen-difficulty"><option value="">Any</option>
+        <option value="1">1 Foundation</option><option value="2">2 Standard</option><option value="3">3 Challenging</option></select></label>
+      <label class="field">Syllabus statements <input name="gen-statements" type="text" placeholder="e.g. A2.1.3, C1.2.1"></label>
+      <label class="field">Past-paper case study <input name="gen-case" type="text" placeholder="e.g. 26M.2.SL.TZ1.6"></label>
+      <label class="field">Your name <input name="gen-name" id="gen-name" type="text" maxlength="60"></label>
+      <button type="submit" class="primary" id="gen-submit">Generate</button>
+      <p id="gen-msg" class="msg" role="status"></p>
+    </div>
+  </form>
 </dialog>
 
 <script src="vendor/jspdf.umd.min.js"></script>
@@ -102,5 +148,6 @@
 <script src="paper.js"></script>
 <script src="word.js"></script>
 <script src="app.js"></script>
+<script src="staff.js"></script>
 </body>
 </html>

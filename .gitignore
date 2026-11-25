@@ -14,3 +14,7 @@ review_pack.pdf
 __pycache__/
 *.pyc
 .venv/
+
+# Generator test output
+drafts-out/
+.pytest_cache/

@@ -1,0 +1,28 @@
+# One-off (re-run if the past-paper PDF changes): Gemini lists every case study in the past-paper PDF and saves
+# the list privately in Drive as reference/case_studies.json, for the question generator to choose from.
+name: Catalogue case studies
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  catalogue:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install
+        run: pip install pyyaml google-api-python-client google-auth google-genai pydantic
+      - name: Catalogue the case studies
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GDRIVE_SERVICE_ACCOUNT_JSON: ${{ secrets.GDRIVE_SERVICE_ACCOUNT_JSON }}
+          DRIVE_FOLDER_ID: ${{ secrets.DRIVE_FOLDER_ID }}
+        run: python scripts/generator/catalogue.py

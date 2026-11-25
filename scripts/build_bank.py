@@ -341,6 +341,8 @@ def main():
             "command_terms": sorted({p["command_term"] for p in q["parts"]}),
             "ao_marks": ao,
             "taught_by": max(taught) if taught else None,   # index into syllabus.terms
+            "generated": (q.get("source") or {}).get("generated_by"),   # e.g. "gemini" for AI-written drafts
+            "review": (q.get("review_history") or [None])[-1],         # latest website review decision
             "units": sorted({u for s in statements for u in syl[s]["units"]}),
             "text": " ".join([q["title"]] + [plain(b.get("text", "")) for b in q["stimulus"]] +
                              [plain(p["question"]) for p in q["parts"]]),

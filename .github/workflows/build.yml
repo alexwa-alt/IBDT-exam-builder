@@ -48,6 +48,7 @@ jobs:
       - name: Encrypt the site
         env:
           SITE_PASSWORD: ${{ secrets.SITE_PASSWORD }}
+          GEN_DISPATCH_TOKEN: ${{ secrets.GEN_DISPATCH_TOKEN }}   # optional: turns on the site's Generate/Review buttons
         run: python scripts/encrypt_site.py --out public
 
       - name: Check nothing readable is published

@@ -1,0 +1,48 @@
+# Saves reviewers' decisions (approve / publish / reject) made on the staff site into the Drive bank, then
+# rebuilds the site. The request is encrypted with the staff password, so this public log shows no names or reasons.
+name: Apply reviews
+
+on:
+  workflow_dispatch:
+    inputs:
+      request:
+        description: 'Encrypted request from the staff site'
+        required: true
+
+permissions:
+  contents: read
+  actions: write               # to start the site build
+
+concurrency:
+  group: review
+  cancel-in-progress: false
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install
+        run: pip install pyyaml cryptography google-api-python-client google-auth
+
+      - name: Save the decisions in Drive
+        id: apply
+        env:
+          GDRIVE_SERVICE_ACCOUNT_JSON: ${{ secrets.GDRIVE_SERVICE_ACCOUNT_JSON }}
+          DRIVE_FOLDER_ID: ${{ secrets.DRIVE_FOLDER_ID }}
+          SITE_PASSWORD: ${{ secrets.SITE_PASSWORD }}
+          REQUEST: ${{ inputs.request }}
+        run: python scripts/review_apply.py --request "$REQUEST"
+
+      - name: Rebuild the site
+        if: steps.apply.outputs.changed != '0' && steps.apply.outputs.changed != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run build.yml --repo "$GITHUB_REPOSITORY" --ref "$GITHUB_REF_NAME"

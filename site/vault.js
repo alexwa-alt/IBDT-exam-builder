@@ -56,7 +56,7 @@ const Vault = (() => {
       const saved = store.get();
       if (!saved) return false;
       try {
-        const k = await crypto.subtle.importKey('raw', fromB64(saved), 'AES-GCM', true, ['decrypt']);
+        const k = await crypto.subtle.importKey('raw', fromB64(saved), 'AES-GCM', true, ['encrypt', 'decrypt']);
         if (await works(k)) { await open(k); return true; }
       } catch (e) { /* fall through */ }
       store.clear();              // password changed since this device logged in
@@ -70,7 +70,7 @@ const Vault = (() => {
                                                  ['deriveKey']);
       const k = await crypto.subtle.deriveKey(
         { name: 'PBKDF2', salt: fromB64(lock.salt), iterations: lock.iterations, hash: 'SHA-256' },
-        base, { name: 'AES-GCM', length: 256 }, true, ['decrypt']);
+        base, { name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
       if (!(await works(k))) return false;
       await open(k);
       if (remember) store.set(toB64(await crypto.subtle.exportKey('raw', k)));
@@ -104,6 +104,20 @@ const Vault = (() => {
     },
 
     async json(name) { return JSON.parse(new TextDecoder().decode(await this.bytes(name))); },
+
+    has(name) { return !!(index && index.files[name]); },
+
+    // Encrypt a request for GitHub Actions with the bank key (see scripts/request_crypto.py). The workflow
+    // rebuilds the same key from the staff password and the public salt sent alongside.
+    async seal(obj) {
+      const nonce = crypto.getRandomValues(new Uint8Array(12));
+      const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: nonce }, key,
+                                             new TextEncoder().encode(JSON.stringify(obj)));
+      const blob = new Uint8Array(12 + ct.byteLength);
+      blob.set(nonce); blob.set(new Uint8Array(ct), 12);
+      const env = { v: 1, salt: lock.salt, iterations: lock.iterations, data: toB64(blob) };
+      return btoa(JSON.stringify(env));
+    },
 
     // A blob: URL (temporary in-memory address) for an image, for <img src>.
     imageURL(name) {
