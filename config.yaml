@@ -1,0 +1,9 @@
+# Settings for the DT question bank build (scripts/build_bank.py).
+
+# Which question statuses appear on the site. Staff review questions on the site, so drafts are shown
+# (marked as drafts) until the department is ready to restrict the site to reviewed questions.
+publish_statuses: [draft, reviewed, published]
+
+# Past-paper case studies use IB-copyright images. They are always built into the staff review pack
+# (kept in the private Drive folder) but only appear on the public site if this is true.
+include_past_paper_figures: false
