@@ -36,6 +36,7 @@ jobs:
         id: apply
         env:
           GDRIVE_SERVICE_ACCOUNT_JSON: ${{ secrets.GDRIVE_SERVICE_ACCOUNT_JSON }}
+          GDRIVE_OAUTH_JSON: ${{ secrets.GDRIVE_OAUTH_JSON }}   # optional: save files as you (README)
           DRIVE_FOLDER_ID: ${{ secrets.DRIVE_FOLDER_ID }}
           SITE_PASSWORD: ${{ secrets.SITE_PASSWORD }}
           REQUEST: ${{ inputs.request }}
