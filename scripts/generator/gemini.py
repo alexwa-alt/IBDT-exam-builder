@@ -17,7 +17,9 @@ class Gemini:
         key = os.environ.get("GEMINI_API_KEY", "").strip()
         if not key:
             raise SystemExit("GEMINI_API_KEY is not set. Add your Gemini API key as a repository secret.")
-        self.client = genai.Client(api_key=key)
+        # Preview models (e.g. gemini-3.1-pro-preview) are only served on the v1beta API, and newer versions of
+        # the google-genai package default to v1, so ask for v1beta explicitly.
+        self.client = genai.Client(api_key=key, http_options={"api_version": "v1beta"})
         self.model, self.temperature, self.max_output_tokens = model, temperature, max_output_tokens
         self.max_calls, self.calls, self.tokens = max_calls, 0, 0
         self._files = {}
@@ -28,6 +30,14 @@ class Gemini:
         if path not in self._files:
             self._files[path] = self.client.files.upload(file=path, config={"mime_type": mime})
         return self._files[path]
+
+    def available_models(self):
+        """Names of the models that can write text with this key (model names are not secret)."""
+        try:
+            return sorted(m.name.removeprefix("models/") for m in self.client.models.list()
+                          if "generateContent" in (getattr(m, "supported_actions", None) or []))
+        except Exception:  # noqa: BLE001
+            return []
 
     def ask(self, contents, schema, temperature=None):
         """contents: list of strings and uploaded files. Returns an instance of the Pydantic schema."""
@@ -47,6 +57,10 @@ class Gemini:
                 code = getattr(e, "code", None)
                 if code == 429 and "quota" in str(e).lower() and "per day" in str(e).lower():
                     raise QuotaError("Gemini daily quota used up") from e
+                if code == 404:
+                    raise SystemExit(f"Gemini model {self.model!r} was not found. Models this key can use: "
+                                     f"{', '.join(self.available_models()) or '(could not list them)'}. "
+                                     "Change 'model:' in generator.yaml.") from e
                 if code in (429, 500, 502, 503, 504) and attempt < 3:
                     time.sleep(delay)
                     delay *= 2

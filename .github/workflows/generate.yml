@@ -49,7 +49,7 @@ jobs:
           cache: pip
 
       - name: Install
-        run: pip install -r requirements.txt google-api-python-client google-auth google-genai pydantic
+        run: pip install -r requirements.txt google-api-python-client google-auth google-genai==3.6.1 pydantic
 
       - name: Write questions with Gemini
         id: gen
