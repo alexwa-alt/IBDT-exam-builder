@@ -189,3 +189,23 @@ def test_request_round_trip_and_tamper():
     old = request_crypto.seal_request(dict(req, sent=0), "pw-123456", salt, 100_000)
     with pytest.raises(request_crypto.BadRequest):
         request_crypto.open_request(old, "review", "pw-123456")
+
+
+# ---------------------------------------------------------------- Drive sign-in
+def test_drive_signs_in_as_person_when_oauth_secret_set(monkeypatch):
+    import fetch_drive
+    monkeypatch.setenv("DRIVE_FOLDER_ID", "folder123")
+    monkeypatch.setenv("GDRIVE_OAUTH_JSON", json.dumps({"client_id": "id", "client_secret": "s", "refresh_token": "r"}))
+    monkeypatch.delenv("GDRIVE_SERVICE_ACCOUNT_JSON", raising=False)
+    svc, folder, who = fetch_drive.service()
+    assert folder == "folder123" and who == "your Google account"
+    creds = svc._http.credentials
+    assert creds.refresh_token == "r" and creds.client_id == "id"
+
+
+def test_drive_oauth_secret_must_be_complete(monkeypatch):
+    import fetch_drive
+    monkeypatch.setenv("DRIVE_FOLDER_ID", "folder123")
+    monkeypatch.setenv("GDRIVE_OAUTH_JSON", json.dumps({"client_id": "id"}))
+    with pytest.raises(SystemExit):
+        fetch_drive.service()

@@ -125,6 +125,35 @@ browser, so the public Actions page shows only scrambled text.
 5. **Try it.** Actions → **Generate questions** → **Run workflow** (count 1). The run page lists what was added;
    the full log is in Drive `generation-log/`.
 
+### Saving files as you (needed when the bank is in My Drive)
+Google does not let the robot (service) account create new files in a **My Drive** folder ("Service Accounts do
+not have storage quota"). It can still read and edit existing files, so the nightly site build is fine, but the
+generator, the catalogue and the private logs must create files. They therefore sign in as **you**, using a
+*refresh token*: a long-lasting permission code that lets a program act on your Drive without your password.
+New files then belong to you, as if you had made them. Do this once (browser only, about 10 minutes):
+
+1. **Consent screen.** Go to <https://console.cloud.google.com>, choose the project that holds the robot account
+   (*dt-paper-builder*). Menu → **APIs & Services** → **OAuth consent screen** (may be called **Google Auth
+   Platform**) → **Get started**. App name: `DT question generator`; support email: yours. **Audience:
+   Internal** (only people at school can use it). If *Internal* is not offered, choose *External*, finish, then
+   on the **Audience** page press **Publish app**. Without that, Google cancels the permission after 7 days.
+2. **Client.** **Clients** (or **Credentials** → **Create credentials** → **OAuth client ID**) → Application type
+   **Web application**, name `DT generator`. Under **Authorised redirect URIs** add
+   `https://developers.google.com/oauthplayground` → **Create**. Copy the **Client ID** and **Client secret**.
+3. **Get the refresh token.** Open <https://developers.google.com/oauthplayground>. Click the **gear** (top
+   right) → tick **Use your own OAuth credentials** → paste the Client ID and secret → close the box. In the left
+   panel, type `https://www.googleapis.com/auth/drive` in the box at the bottom → **Authorize APIs** → sign in
+   with your school account → **Allow** (with an *External* app, click **Advanced** → **Go to DT question
+   generator** at the "unverified" warning: it is your own app). Then press **Exchange authorization code for
+   tokens** and copy the **Refresh token**.
+4. **Secret.** Add repository secret `GDRIVE_OAUTH_JSON` with this value (your three values, in quotes):
+   `{"client_id": "...", "client_secret": "...", "refresh_token": "..."}`
+5. Run **Catalogue case studies** again.
+
+Keep it private: the refresh token gives full access to your Google Drive. It is only used by the Generate, Review
+and Catalogue jobs. To cancel it, remove *DT question generator* at <https://myaccount.google.com/permissions>.
+If Google ever refuses it (the run says so), repeat steps 3–4.
+
 To change the model, the number per night, the daily cap or the mix of marks and difficulty, edit
 `generator.yaml`. To change the time, edit the `cron` line in `.github/workflows/generate.yml`.
 

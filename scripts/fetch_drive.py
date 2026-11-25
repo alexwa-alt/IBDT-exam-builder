@@ -1,9 +1,15 @@
 """Download the staff-only Google Drive folder (question source + strands workbook), or upload the review pack.
 
-Uses a Google service account (a robot Google account). The Drive folder must be shared with the service
-account's email address. The folder is in a Shared Drive, so every call passes supportsAllDrives.
+Signs in to Drive one of two ways:
+  - as a person (preferred when set): GDRIVE_OAUTH_JSON holds {"client_id", "client_secret", "refresh_token"}
+    from a one-off sign-in (see README, "Saving files as you"). New files then belong to that person, which is
+    needed to create files in a My Drive folder.
+  - as a Google service account (a robot Google account): GDRIVE_SERVICE_ACCOUNT_JSON. The robot can read and
+    edit existing files, but Google does not let it create new files in a My Drive folder.
+Every call passes supportsAllDrives, so the folder may also be in a Shared Drive.
 
 Environment:
+  GDRIVE_OAUTH_JSON             optional: sign in as a person (see above)
   GDRIVE_SERVICE_ACCOUNT_JSON   the service account's JSON key (the whole file's contents)
   DRIVE_FOLDER_ID               the id of the top Drive folder (the part of its link after /folders/)
 
@@ -39,19 +45,41 @@ def fail(msg):
     sys.exit(1)
 
 
+SCOPES = ["https://www.googleapis.com/auth/drive"]
+
+
+def user_credentials(raw):
+    """Credentials for a person, from GDRIVE_OAUTH_JSON (client id and secret plus a refresh token)."""
+    from google.oauth2.credentials import Credentials
+    try:
+        info = json.loads(raw)
+        missing = [k for k in ("client_id", "client_secret", "refresh_token") if not info.get(k)]
+    except (json.JSONDecodeError, AttributeError):
+        info, missing = None, ["valid JSON"]
+    if missing:
+        fail(f"GDRIVE_OAUTH_JSON needs {', '.join(missing)}. It should look like "
+             '{"client_id": "...", "client_secret": "...", "refresh_token": "..."}.')
+    return Credentials(None, refresh_token=info["refresh_token"], client_id=info["client_id"],
+                       client_secret=info["client_secret"], token_uri="https://oauth2.googleapis.com/token",
+                       scopes=SCOPES)
+
+
 def service():
-    raw = os.environ.get("GDRIVE_SERVICE_ACCOUNT_JSON", "").strip()
     folder = os.environ.get("DRIVE_FOLDER_ID", "").strip()
-    if not raw:
-        fail("GDRIVE_SERVICE_ACCOUNT_JSON is not set. Add the service account's JSON key as a repository secret.")
     if not folder:
         fail("DRIVE_FOLDER_ID is not set. Add the Drive folder id as a repository secret.")
+    oauth = os.environ.get("GDRIVE_OAUTH_JSON", "").strip()
+    if oauth:
+        creds = user_credentials(oauth)
+        return build("drive", "v3", credentials=creds, cache_discovery=False), folder, "your Google account"
+    raw = os.environ.get("GDRIVE_SERVICE_ACCOUNT_JSON", "").strip()
+    if not raw:
+        fail("GDRIVE_SERVICE_ACCOUNT_JSON is not set. Add the service account's JSON key as a repository secret.")
     try:
         info = json.loads(raw)
     except json.JSONDecodeError:
         fail("GDRIVE_SERVICE_ACCOUNT_JSON is not valid JSON. Paste the whole key file, including the { }.")
-    creds = service_account.Credentials.from_service_account_info(
-        info, scopes=["https://www.googleapis.com/auth/drive"])
+    creds = service_account.Credentials.from_service_account_info(info, scopes=SCOPES)
     return build("drive", "v3", credentials=creds, cache_discovery=False), folder, info.get("client_email", "?")
 
 
@@ -69,11 +97,15 @@ def children(drive, folder_id):
 
 def open_folder(drive, folder_id, email):
     """Check the folder can be seen, with a clear message if it isn't shared with the robot account."""
+    from google.auth.exceptions import RefreshError
     try:
         f = drive.files().get(fileId=folder_id, fields="id, name, mimeType", **ALL).execute()
+    except RefreshError:
+        fail("Google refused the saved sign-in in GDRIVE_OAUTH_JSON (it was revoked, expired, or the password "
+             "changed). Make a new refresh token (README, 'Saving files as you') and update the secret.")
     except HttpError as e:
         if e.resp.status in (403, 404):
-            fail(f"The service account cannot see Drive folder {folder_id}. Share the folder (or its Shared Drive) "
+            fail(f"{email} cannot see Drive folder {folder_id}. Share the folder (or its Shared Drive) "
                  f"with {email}, then run the workflow again.")
         raise
     if f["mimeType"] != FOLDER:
