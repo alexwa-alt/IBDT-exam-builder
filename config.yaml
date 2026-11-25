@@ -4,6 +4,8 @@
 # (marked as drafts) until the department is ready to restrict the site to reviewed questions.
 publish_statuses: [draft, reviewed, published]
 
-# Past-paper case studies use IB-copyright images. They are always built into the staff review pack
-# (kept in the private Drive folder) but only appear on the public site if this is true.
-include_past_paper_figures: false
+# Past-paper case studies use IB-copyright and third-party images. They are always built into the staff
+# review pack (kept in the private Drive folder), and appear on the site only if this is true. The site is
+# password-protected and every image is encrypted, so only staff with the password can see them.
+# Set back to false to take them off the site at the next build.
+include_past_paper_figures: true

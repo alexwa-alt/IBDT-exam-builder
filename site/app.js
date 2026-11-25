@@ -408,11 +408,13 @@ function chooseSpecimen(pool, format) {
   }
   if (missing.length) return { missing };
 
-  let best = null;
+  // Try many random orders; keep every distinct paper. Then pick at random among the papers whose topic
+  // overlap is at most one more than the best, so repeated presses give different (but still varied) papers.
+  const papers = new Map();
   for (let attempt = 0; attempt < 400; attempt++) {
     const chosen = [], topics = new Map();
     let overlap = 0;
-    for (const s of format.slots) {
+    for (const s of shuffle(format.slots)) {      // random slot order, so every combination can be reached
       const options = shuffle(pool.filter(q => q.marks === s.marks));
       for (let k = 0; k < s.count; k++) {
         let pick = null, pickScore = Infinity;
@@ -425,10 +427,16 @@ function chooseSpecimen(pool, format) {
         pick.topics.forEach(x => topics.set(x, (topics.get(x) || 0) + 1));
       }
     }
-    if (!best || overlap < best.overlap) best = { chosen, overlap };
-    if (overlap === 0) break;
+    const key = chosen.map(q => q.id).sort().join(' ');
+    if (!papers.has(key) || papers.get(key).overlap > overlap) papers.set(key, { chosen, overlap });
   }
-  return { ids: best.chosen.map(q => q.id), overlap: best.overlap };
+  const all = [...papers.values()];
+  const lowest = Math.min(...all.map(p => p.overlap));
+  const good = all.filter(p => p.overlap <= lowest + 1);
+  const pick = good[Math.floor(Math.random() * good.length)];
+  const slotOrder = q => format.slots.findIndex(s => s.marks === q.marks);   // 6-mark questions first
+  const ordered = pick.chosen.slice().sort((a, b) => slotOrder(a) - slotOrder(b));
+  return { ids: ordered.map(q => q.id), overlap: pick.overlap };
 }
 
 $('specimen').onclick = () => {
