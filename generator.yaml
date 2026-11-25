@@ -24,11 +24,13 @@ target_share:
 
 # Reference files in Drive (read by the robot account at run time; never copied into this repository).
 drive:
-  past_papers_pdf: 1hP4kNa-C0AWzhhliADEnAgV3wImd2lcG      # "Case Study style questions - from past syllabus"
+  # Copies kept in the bank's reference/ folder, which the robot account can read (the originals are in the
+  # department shared drive, which it cannot see).
+  past_papers_pdf: 1mwQaJjwJEtf1KC4ZnA3nN7cwxcZa6kTG      # reference/past_papers_case_studies.pdf
   specimen_sl_paper2:                                     # specimen SL Paper 2 and its markscheme (Parts 10-12)
-    - 1HLeaNlm5ltzZROOw4wUBOg-Q_wcM2Tfx
-    - 1-b6tzyChyBjw1b2A-GNyl6mxBVVRRHsA
-    - 1eoPBTIxNMYexZNffQuLmmcI_tRV-Fpwx
+    - 1YjJFOnQjuxwKwQTRbPj06x3dfJXrn4w2                   # reference/specimen_sl_p2_part10.pdf
+    - 1Iwrhoc6dGDXBY_naCha4Z7lG2fi6Z4LZ                   # reference/specimen_sl_p2_part11.pdf
+    - 1d0icdz8sS986u5BgNm06TtERov42zsDo                   # reference/specimen_sl_p2_part12_markscheme.pdf
   exemplars: [bmw-ix5-hydrogen, daav-airport-wheelchair]  # bank questions shown to Gemini as examples
   reference_folder: reference          # in the bank root: holds case_studies.json
   log_folder: generation-log           # in the bank root: one private log file per run
