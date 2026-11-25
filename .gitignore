@@ -1,0 +1,16 @@
+# Question content must never be committed (the repository is public).
+# It lives in the staff-only Google Drive folder; use local-source/ for local testing.
+source/
+local-source/
+*.zip
+*.yaml.bak
+
+# Build output: rendered questions, unencrypted data, the review pack and the encrypted site.
+build/
+public/
+site/data/
+review_pack.pdf
+
+__pycache__/
+*.pyc
+.venv/

@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>DT paper builder</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- Login screen: shown until the password unlocks the encrypted bank -->
+<div id="login" class="login" hidden>
+  <form id="login-form" class="login-card" autocomplete="on">
+    <h1>DT practice-paper builder</h1>
+    <p class="muted">Staff only. Enter the department password.</p>
+    <label class="field">Password
+      <input id="password" type="password" autocomplete="current-password" required>
+    </label>
+    <label class="check"><input id="remember" type="checkbox"> Remember me on this device</label>
+    <button type="submit" class="primary" id="login-btn">Open</button>
+    <p id="login-msg" class="msg" role="alert"></p>
+  </form>
+</div>
+
+<div id="app" hidden>
+  <header class="top">
+    <div>
+      <h1>IB Design technology · practice-paper builder</h1>
+      <p class="muted small" id="bank-info"></p>
+    </div>
+    <a href="#" id="logout">Log out</a>
+  </header>
+
+  <main class="layout">
+    <!-- Filters -->
+    <aside class="panel filters" aria-label="Filters">
+      <div class="panel-head">
+        <h2>Filters</h2>
+        <button type="button" class="link" id="clear-filters">Clear all</button>
+      </div>
+      <label class="field">Search
+        <input id="f-text" type="search" placeholder="Words in the question">
+      </label>
+      <label class="field">Taught so far
+        <select id="f-taught"></select>
+      </label>
+      <p class="hint">Shows questions whose syllabus content is all taught by the end of that term.</p>
+      <fieldset><legend>Row</legend><div id="f-rows" class="checks"></div></fieldset>
+      <fieldset><legend>Marks</legend><div id="f-marks" class="checks"></div></fieldset>
+      <fieldset><legend>Difficulty</legend><div id="f-difficulty" class="checks"></div></fieldset>
+      <fieldset><legend>Command term</legend><div id="f-terms" class="checks"></div></fieldset>
+      <fieldset><legend>Unit</legend><div id="f-units" class="checks"></div></fieldset>
+      <fieldset><legend>Source</legend><div id="f-source" class="checks"></div></fieldset>
+      <fieldset><legend>Status</legend><div id="f-status" class="checks"></div></fieldset>
+      <fieldset><legend>Topic and syllabus statement</legend><div id="f-topics" class="tree"></div></fieldset>
+    </aside>
+
+    <!-- Question cards -->
+    <section class="results" aria-label="Questions">
+      <div class="results-head">
+        <h2 id="result-count">Questions</h2>
+      </div>
+      <div id="cards" class="cards"></div>
+    </section>
+
+    <!-- The paper being built -->
+    <aside class="panel paper" aria-label="Your paper">
+      <div class="panel-head"><h2>Your paper</h2><button type="button" class="link" id="clear-paper">Clear</button></div>
+      <button type="button" class="primary wide" id="specimen">Build a specimen-style paper</button>
+      <p class="hint">Picks five 6-mark and two 10-mark questions from the filtered list (50 marks).</p>
+      <p id="paper-msg" class="msg" role="status"></p>
+      <ol id="paper-list" class="paper-list"></ol>
+      <p id="paper-total" class="total"></p>
+      <label class="check"><input id="include-ms" type="checkbox" checked> Include markscheme</label>
+      <button type="button" class="primary wide" id="download" disabled>Download PDF</button>
+      <p id="pdf-msg" class="msg" role="status"></p>
+    </aside>
+  </main>
+</div>
+
+<!-- Full question viewer -->
+<dialog id="viewer">
+  <div class="viewer-head">
+    <h2 id="viewer-title"></h2>
+    <div class="viewer-actions">
+      <button type="button" id="viewer-toggle"></button>
+      <button type="button" id="viewer-add" class="primary"></button>
+      <button type="button" id="viewer-close" aria-label="Close">✕</button>
+    </div>
+  </div>
+  <div id="viewer-body" class="viewer-body"></div>
+</dialog>
+
+<script src="vendor/jspdf.umd.min.js"></script>
+<script src="vault.js"></script>
+<script src="paper.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
