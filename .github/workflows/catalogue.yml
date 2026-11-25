@@ -19,7 +19,7 @@ jobs:
           python-version: '3.12'
           cache: pip
       - name: Install
-        run: pip install pyyaml google-api-python-client google-auth google-genai pydantic
+        run: pip install pyyaml google-api-python-client google-auth google-genai==3.6.1 pydantic
       - name: Catalogue the case studies
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
