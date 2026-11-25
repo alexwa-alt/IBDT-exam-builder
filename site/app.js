@@ -366,7 +366,7 @@ function renderPaper() {
   $('paper-total').textContent = paper.length
     ? `${paper.length} question${paper.length === 1 ? '' : 's'} · ${marks} marks · ${DTPaper.duration(marks)}`
     : '';
-  $('download').disabled = !paper.length;
+  $('download').disabled = $('download-word').disabled = !paper.length;
 }
 
 function setMsg(id, text, kind, action) {
@@ -456,26 +456,42 @@ $('specimen').onclick = () => {
     before.length ? { label: 'Undo', run: () => restore(before) } : null);
 };
 
-// ------------------------------------------------------------------ PDF
-$('download').onclick = async () => {
-  const btn = $('download');
-  btn.disabled = true;
-  setMsg('pdf-msg', 'Preparing the PDF…');
+// ------------------------------------------------------------------ downloads (PDF and Word)
+const FORMATS_OUT = {
+  pdf: { button: 'download', label: 'PDF', make: async opts => (await DTPaper.build(opts)).output('blob'),
+         name: DTPaper.fileName },
+  docx: { button: 'download-word', label: 'Word document', make: opts => DTWord.build(opts), name: DTWord.fileName },
+};
+
+function saveBlob(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const a = el('a', { href: url, download: name });
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+
+async function download(kind) {
+  const f = FORMATS_OUT[kind];
+  const buttons = Object.values(FORMATS_OUT).map(x => $(x.button));
+  buttons.forEach(b => { b.disabled = true; });
+  setMsg('pdf-msg', `Preparing the ${f.label}…`);
   try {
     const qs = paper.map(id => byId.get(id));
     const opts = { questions: qs, level: qs[0].level, paper: qs[0].paper, markscheme: $('include-ms').checked,
       loadImage: n => Vault.bytes(n),
-      onProgress: (d, t) => setMsg('pdf-msg', `Preparing the PDF… (${d} of ${t} images)`) };
-    const doc = await DTPaper.build(opts);
+      onProgress: (d, t) => setMsg('pdf-msg', `Preparing the ${f.label}… (${d} of ${t} images)`) };
+    const blob = await f.make(opts);
     const marks = qs.reduce((s, q) => s + q.marks, 0);
-    doc.save(DTPaper.fileName(opts, marks));
-    setMsg('pdf-msg', 'PDF downloaded.', 'good');
+    saveBlob(blob, f.name(opts, marks));
+    setMsg('pdf-msg', `${f.label[0].toUpperCase() + f.label.slice(1)} downloaded.`, 'good');
   } catch (e) {
     console.error(e);
-    setMsg('pdf-msg', 'Sorry, the PDF could not be made: ' + e.message, 'bad');
+    setMsg('pdf-msg', `Sorry, the ${f.label} could not be made: ${e.message}`, 'bad');
   } finally {
-    btn.disabled = !paper.length;
+    buttons.forEach(b => { b.disabled = !paper.length; });
   }
-};
+}
+$('download').onclick = () => download('pdf');
+$('download-word').onclick = () => download('docx');
 
 start();

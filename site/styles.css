@@ -173,3 +173,6 @@ dialog::backdrop { background: rgba(0, 0, 0, .45); }
   .top h1 { font-size: 1rem; }
   .cards { grid-template-columns: minmax(0, 1fr); }
 }
+
+.download-row { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
+.download-row + .hint { margin-top: .5rem; }
