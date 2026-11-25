@@ -2,7 +2,7 @@
 # Nothing here is secret: the Gemini key and the Drive robot key are GitHub secrets.
 
 # The Gemini model. Change this one value to switch model (see https://ai.google.dev/gemini-api/docs/models).
-model: gemini-2.5-pro
+model: gemini-3.1-pro-preview
 temperature: 0.7
 max_output_tokens: 16000
 
