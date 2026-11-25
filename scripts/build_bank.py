@@ -308,8 +308,19 @@ def main():
                               "h_mm": round(im.height * 25.4 / DPI, 1)})
             return items
 
-        pages = save(render(question_story(q, qdir), Q_W), "q")
-        ms = save(render(markscheme_story(q), MS_W), "ms")
+        try:   # a drawing error (usually bad <b>/<i> markup or a bare &) leaves out this question only
+            q_pages, ms_pages = render(question_story(q, qdir), Q_W), render(markscheme_story(q), MS_W)
+        except Exception as e:  # noqa: BLE001 - report any rendering problem against the question
+            reason = " ".join(str(e).split())[:300]
+            entry = next((r for r in review if r["id"] == qdir.name), None)
+            if entry is None:
+                entry = {"id": qdir.name, "errors": [], "warnings": []}
+                review.append(entry)
+            entry["errors"].append("could not be drawn; check that every <b>, <i>, <super> and <sub> tag is "
+                                   f"closed and that & is written &amp; ({reason})")
+            continue
+        pages = save(q_pages, "q")
+        ms = save(ms_pages, "ms")
         if not on_site:
             print(f"rendered {q['id']} for the review pack only")
             continue
