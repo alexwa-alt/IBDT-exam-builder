@@ -9,7 +9,7 @@ level: SL                        # SL or HL
 paper: 2
 marks: 6                         # SL Paper 2: 6 or 10
 difficulty: 2                    # 1 = foundation, 2 = standard, 3 = challenging
-status: draft                    # draft -> reviewed -> published
+status: draft                    # draft -> reviewed -> published (or rejected; set from the website)
 source:
   type: past-paper case study    # or: original
   reference: 26M.2.SL.TZ2.6
@@ -45,3 +45,10 @@ paper builder decides question numbers.
 **Checks.** `python scripts/build_bank.py` refuses any question whose marks don't add up, whose command term is
 not on the department list or doesn't match the wording, that cites a missing or HL-only statement, or that uses
 HL-only or old-syllabus terms. Problems are listed in `build/data/review.json`.
+
+**Fields added automatically** (leave them as they are):
+- `source.generated_by`, `source.generated_on`, `source.model`, `source.target`: on questions written by Gemini
+  (`scripts/generator/`). The site marks these questions "AI-written".
+- `review_history`: a list of decisions made with the website's Review buttons (date, who, status, reason).
+  `status: rejected` questions are hidden on the site unless the Rejected filter is ticked; their reasons are
+  shown to Gemini so it avoids the same problems.

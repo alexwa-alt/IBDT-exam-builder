@@ -5,7 +5,8 @@
 const UNIT_NAMES = {};
 const DIFFICULTY = { 1: 'Foundation', 2: 'Standard', 3: 'Challenging' };
 const SOURCE_TYPES = { 'original': 'Original', 'past-paper case study': 'Past-paper case study' };
-const STATUS = { draft: 'Draft', reviewed: 'Reviewed', published: 'Published' };
+const STATUS = { draft: 'Draft', reviewed: 'Reviewed', published: 'Published', rejected: 'Rejected' };
+const ORIGIN = { staff: 'Staff', ai: 'AI (Gemini)' };
 // Paper formats the "specimen-style" button can build. Add HL Paper 2 here later.
 const FORMATS = {
   'SL-2': { label: 'SL Paper 2', level: 'SL', paper: 2, slots: [{ marks: 6, count: 5 }, { marks: 10, count: 2 }] },
@@ -36,11 +37,12 @@ let bank = [], byId = new Map(), syllabus = null;
 let paper = [];
 const F = {   // current filters; each Set holds ticked options (empty = no restriction)
   text: '', taught: '', rows: new Set(), marks: new Set(), difficulty: new Set(), terms: new Set(),
-  units: new Set(), source: new Set(), status: new Set(), statements: new Set(),
+  units: new Set(), source: new Set(), status: new Set(), statements: new Set(), origin: new Set(),
 };
 const GROUPS = {   // how each checkbox group reads a question (a question may have several values)
   rows: q => q.rows, marks: q => [q.marks], difficulty: q => [q.difficulty], terms: q => q.command_terms,
   units: q => q.units, source: q => [q.sourceType], status: q => [q.status], statements: q => q.statements,
+  origin: q => [q.generated ? 'ai' : 'staff'],
 };
 
 // ------------------------------------------------------------------ login
@@ -103,17 +105,21 @@ async function enter() {
 
   const built = Vault.built ? new Date(Vault.built).toLocaleDateString('en-GB',
     { day: 'numeric', month: 'short', year: 'numeric' }) : '';
-  $('bank-info').textContent = `${bank.length} question${bank.length === 1 ? '' : 's'} in the bank` +
+  const live = bank.filter(q => q.status !== 'rejected').length;
+  $('bank-info').textContent = `${live} question${live === 1 ? '' : 's'} in the bank` +
     (built ? ` · updated ${built}` : '');
   buildFilters();
   $('login').hidden = true;
   $('app').hidden = false;
   refresh();
   renderPaper();
+  if (typeof Staff !== 'undefined') await Staff.afterEnter();
 }
 
 // ------------------------------------------------------------------ filters
 function matches(q, skip) {
+  // Rejected questions stay hidden unless the Rejected box under Status is ticked.
+  if (skip !== 'status' && q.status === 'rejected' && !F.status.has('rejected')) return false;
   if (F.text) {
     const hay = (q.title + ' ' + q.text).toLowerCase();
     if (!F.text.toLowerCase().split(/\s+/).filter(Boolean).every(w => hay.includes(w))) return false;
@@ -163,6 +169,7 @@ function buildFilters() {
     .map(u => [u, UNIT_NAMES[u] ? `Unit ${u}: ${UNIT_NAMES[u]}` : `Unit ${u}`]));
   fillChecks('f-source', 'source', Object.entries(SOURCE_TYPES).filter(([k]) => bank.some(q => q.sourceType === k)));
   fillChecks('f-status', 'status', Object.entries(STATUS).filter(([k]) => bank.some(q => q.status === k)));
+  fillChecks('f-origin', 'origin', bank.some(q => q.generated) ? Object.entries(ORIGIN) : []);
   buildTree();
 
   $('clear-filters').onclick = () => {
@@ -234,9 +241,10 @@ let observer = null;
 function refresh() {
   const shown = bank.filter(q => matches(q));
   updateCounts();
-  $('result-count').textContent = shown.length === bank.length
-    ? `All ${bank.length} questions`
-    : `${shown.length} of ${bank.length} questions match`;
+  const total = bank.filter(q => q.status !== 'rejected').length;
+  $('result-count').textContent = shown.length === total
+    ? `All ${total} questions`
+    : `${shown.length} of ${total} questions match`;
   if (observer) observer.disconnect();
   observer = 'IntersectionObserver' in window ? new IntersectionObserver(loadPreviews, { rootMargin: '300px' }) : null;
   const cards = $('cards');
@@ -263,7 +271,7 @@ function card(q) {
       el('div', { class: 'card-title' }, el('h3', { text: q.title }), el('span', { class: 'marks', text: `[${q.marks}]` })),
       el('div', { class: 'meta' }, `${DIFFICULTY[q.difficulty] || ''} · ${q.rows.join(', ')}`,
         q.taught_by != null ? ` · taught by ${syllabus.terms[q.taught_by]}` : ''),
-      el('div', { class: 'tags' }, badge, q.sourceType !== 'original' ? el('span', { class: 'tag', text: 'Past-paper case study' }) : null,
+      el('div', { class: 'tags' }, badge, typeof Staff !== 'undefined' ? Staff.cardExtras(q) : null, q.sourceType !== 'original' ? el('span', { class: 'tag', text: 'Past-paper case study' }) : null,
         q.topics.map(t => el('span', { class: 'tag', title: syllabus.topics[t] || '', text: t }))),
       el('div', { class: 'card-actions' },
         el('button', { type: 'button', class: inPaper ? '' : 'primary', text: inPaper ? 'Remove from paper' : 'Add to paper',
@@ -300,6 +308,7 @@ async function openViewer(id, showMs = false) {
   $('viewer-toggle').textContent = showMs ? 'Show question' : 'Show markscheme';
   $('viewer-toggle').disabled = !q.ms.length;
   updateViewerButton();
+  if (typeof Staff !== 'undefined') Staff.updateViewer();
   const body = $('viewer-body');
   const pages = showMs ? q.ms : q.pages;
   body.replaceChildren(el('h3', { text: showMs ? 'Markscheme' : 'Question' }),

@@ -2,7 +2,9 @@
 
 # Which question statuses appear on the site. Staff review questions on the site, so drafts are shown
 # (marked as drafts) until the department is ready to restrict the site to reviewed questions.
-publish_statuses: [draft, reviewed, published]
+# "rejected" questions are built too, but the site hides them unless the Rejected filter is ticked, so a
+# reviewer can undo a rejection from the website.
+publish_statuses: [draft, reviewed, published, rejected]
 
 # Past-paper case studies use IB-copyright and third-party images. They are always built into the staff
 # review pack (kept in the private Drive folder), and appear on the site only if this is true. The site is

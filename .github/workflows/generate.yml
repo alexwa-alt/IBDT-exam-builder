@@ -1,0 +1,80 @@
+# Writes new practice questions with Gemini and adds them to the Drive bank as drafts.
+# Runs every night before the site build, from the "Generate" button on the staff site, or from the
+# "Run workflow" button in the Actions tab. The question content never appears in this (public) log: details go
+# to the private Drive folder generation-log/.
+name: Generate questions
+
+on:
+  schedule:
+    - cron: '47 17 * * *'      # 00:47 Bangkok time, before the 02:17 site build
+  workflow_dispatch:
+    inputs:
+      request:
+        description: 'Encrypted request from the staff site (leave blank when running by hand)'
+        required: false
+      count:
+        description: 'How many questions (1-5)'
+        default: '1'
+      marks:
+        description: '6 or 10 (blank = whatever the bank needs most)'
+        required: false
+      difficulty:
+        description: '1, 2 or 3 (blank = whatever the bank needs most)'
+        required: false
+      statements:
+        description: 'Syllabus statements, e.g. A2.1.3,C1.2.1 (blank = choose from the gaps)'
+        required: false
+      case_study:
+        description: 'Past-paper reference, e.g. 26M.2.SL.TZ1.6 (blank = choose automatically)'
+        required: false
+
+permissions:
+  contents: read
+  actions: write               # to start the site build after an on-demand run
+
+concurrency:
+  group: generate
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install
+        run: pip install -r requirements.txt google-api-python-client google-auth google-genai pydantic
+
+      - name: Write questions with Gemini
+        id: gen
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GDRIVE_SERVICE_ACCOUNT_JSON: ${{ secrets.GDRIVE_SERVICE_ACCOUNT_JSON }}
+          DRIVE_FOLDER_ID: ${{ secrets.DRIVE_FOLDER_ID }}
+          SITE_PASSWORD: ${{ secrets.SITE_PASSWORD }}
+          REQUEST: ${{ inputs.request }}
+          COUNT: ${{ inputs.count || '1' }}
+          MARKS: ${{ inputs.marks }}
+          DIFFICULTY: ${{ inputs.difficulty }}
+          STATEMENTS: ${{ inputs.statements }}
+          CASE_STUDY: ${{ inputs.case_study }}
+        run: |
+          args=(--count "$COUNT")
+          [ -n "$MARKS" ] && args+=(--marks "$MARKS")
+          [ -n "$DIFFICULTY" ] && args+=(--difficulty "$DIFFICULTY")
+          [ -n "$STATEMENTS" ] && args+=(--statements "$STATEMENTS")
+          [ -n "$CASE_STUDY" ] && args+=(--case-study "$CASE_STUDY")
+          [ -n "$REQUEST" ] && args+=(--request "$REQUEST")
+          python scripts/generator/generate.py "${args[@]}"
+
+      - name: Rebuild the site now (on-demand runs only)
+        if: github.event_name == 'workflow_dispatch' && steps.gen.outputs.added != '0' && steps.gen.outputs.added != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run build.yml --repo "$GITHUB_REPOSITORY" --ref "$GITHUB_REF_NAME"

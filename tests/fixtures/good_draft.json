@@ -1,0 +1,17 @@
+{
+ "title": "Folding camping stool",
+ "marks": 6,
+ "difficulty": 2,
+ "source_note": "Fictional context written for testing the generator. Table 1 written for this practice paper.",
+ "stimulus": [
+  {"kind": "text", "text": "A small company designs a folding stool for people who go camping. The stool must be light enough to carry in a rucksack, quick to set up and comfortable to sit on for up to an hour. The designers made three prototypes with different seat heights and seat materials, and asked twenty adult campers to test each one at a campsite over a weekend. Each user sat on every stool for twenty minutes while cooking and eating a meal, and then rated its comfort and ease of setting up. The designers also timed how long each user took to unfold the stool and recorded its mass. They wanted to find which prototype best met the needs of the widest range of users before choosing one design to develop further. The results of the user trial are shown in Table 1 & the designers' notes are listed below."},
+  {"kind": "table", "table_caption": "Table 1: Results of the user trial", "table_rows": [["Prototype", "Seat height (mm)", "Mass (g)", "Mean set-up time (s)", "Mean comfort rating (1-5)"], ["A", "300", "650", "12", "2.8"], ["B", "380", "820", "9", "4.1"], ["C", "450", "1100", "15", "3.6"]]},
+  {"kind": "bullets", "bullets": ["Several shorter users said prototype C was too high for their feet to rest flat on the ground.", "Taller users found prototype A hard to stand up from after sitting."]},
+  {"kind": "note", "text": "Data written for this practice paper."}
+ ],
+ "parts": [
+  {"label": "a", "marks": 1, "command_term": "State", "syllabus": ["A1.1.3"], "question": "State the type of ergonomic data that seat height is based on.", "answers": ["Anthropometric data", "Popliteal height / lower leg length data"], "notes": "Award [1] for anthropometric data."},
+  {"label": "b", "marks": 2, "command_term": "Outline", "syllabus": ["B1.1.5"], "question": "Outline one benefit of testing the prototypes with users at a campsite.", "answers": ["Users experience the stool in the real context of use", "Uneven ground and real tasks such as cooking reveal problems a laboratory test would miss", "Designers can observe actual behaviour, not only opinions"], "notes": "Award [1] for a benefit and [1] for a linked explanation, up to [2 max]."},
+  {"label": "c", "marks": 3, "command_term": "Explain", "syllabus": ["A1.1.4", "A1.1.3"], "question": "Using Table 1, explain why prototype B is the most appropriate design to develop.", "answers": ["Prototype B has the highest mean comfort rating (4.1)", "Its seat height of 380 mm suits both shorter and taller users, unlike A and C", "It has the quickest set-up time (9 s)", "Its mass (820 g) is acceptable for carrying in a rucksack, lighter than C"], "notes": "Award [1] for each relevant point up to [3 max]. To gain [3] the response must use data from Table 1."}
+ ]
+}

@@ -28,7 +28,7 @@ SHORTCUT = "application/vnd.google-apps.shortcut"
 # Google-format files are exported; everything else is downloaded as it is.
 EXPORTS = {"application/vnd.google-apps.spreadsheet":
            ("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", ".xlsx")}
-SKIP_FOLDERS = {"review"}          # the review pack is an output, not an input
+SKIP_FOLDERS = {"review", "reference", "generation-log"}   # outputs and private generator files, not inputs
 REVIEW_FOLDER, REVIEW_NAME = "review", "DT_bank_review_pack.pdf"
 ALL = {"supportsAllDrives": True}
 LIST = {"supportsAllDrives": True, "includeItemsFromAllDrives": True}

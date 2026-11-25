@@ -7,6 +7,7 @@
   --accent: #0b5d8a;
   --accent-text: #ffffff;
   --accent-soft: #e3f0f7;
+  --ai: #4b2c8c; --ai-soft: #ece4fb; --bad-soft: #fde2e2;
   --warn: #8a4b00;
   --warn-soft: #fff1dc;
   --bad: #a3261b;
@@ -19,6 +20,7 @@
     --bg: #15181d; --panel: #1e232a; --text: #e6e9ee; --muted: #a0a9b8; --line: #343b46;
     --accent: #4fa3d1; --accent-text: #0d1a22; --accent-soft: #1d3442;
     --warn: #f2b45c; --warn-soft: #3a2a12; --bad: #ff8a7e; --good: #7fd19b;
+    --ai: #c9b3f5; --ai-soft: #2c2342; --bad-soft: #3d1d1d;
     --shadow: none; color-scheme: dark;
   }
 }
@@ -26,6 +28,7 @@
   --bg: #15181d; --panel: #1e232a; --text: #e6e9ee; --muted: #a0a9b8; --line: #343b46;
   --accent: #4fa3d1; --accent-text: #0d1a22; --accent-soft: #1d3442;
   --warn: #f2b45c; --warn-soft: #3a2a12; --bad: #ff8a7e; --good: #7fd19b;
+  --ai: #c9b3f5; --ai-soft: #2c2342; --bad-soft: #3d1d1d;
   --shadow: none; color-scheme: dark;
 }
 
@@ -60,7 +63,7 @@ button.link { border: 0; background: none; color: var(--accent); padding: 0; fon
 button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible {
   outline: 2px solid var(--accent); outline-offset: 2px;
 }
-input[type="search"], input[type="password"], select {
+input[type="search"], input[type="password"], input[type="text"], select {
   width: 100%; padding: .45rem .55rem; border: 1px solid var(--line); border-radius: 6px; background: var(--bg);
 }
 .field { display: block; font-size: .85rem; font-weight: 600; margin-bottom: .5rem; }
@@ -129,6 +132,22 @@ legend { font-size: .85rem; font-weight: 600; padding: 0 .4rem 0 0; }
 .badge { font-size: .72rem; font-weight: 700; border-radius: 4px; padding: .05rem .4rem; }
 .badge.draft { background: var(--warn-soft); color: var(--warn); }
 .badge.reviewed { background: var(--accent-soft); color: var(--accent); }
+.badge.rejected { background: var(--bad-soft); color: var(--bad); }
+.tag.ai { background: var(--ai-soft); color: var(--ai); }
+.tag.pending { background: var(--warn-soft); color: var(--warn); }
+
+/* Staff tools (staff.js) */
+.top-actions { display: flex; gap: .75rem; align-items: center; }
+.review-tray { border: 1px solid var(--warn); border-radius: 8px; padding: .6rem .7rem; margin-bottom: 1rem; }
+.review-tray h2 { font-size: 1rem; margin: 0 0 .4rem; }
+.review-tray .paper-list li { grid-template-columns: 1fr auto; }
+.viewer-review { width: 100%; display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
+.viewer-review button.chosen { outline: 2px solid var(--accent); }
+.reject-row { width: 100%; display: flex; gap: .5rem; align-items: flex-end; }
+.reject-row .field { flex: 1; margin: 0; }
+button.danger { color: var(--bad); border-color: var(--bad); }
+.gen-form { margin: 0; }
+.gen-body { padding: 1rem; display: grid; gap: .5rem; max-width: 520px; }
 .card-actions { margin-top: auto; padding-top: .4rem; display: flex; gap: .5rem; }
 .card-actions button { flex: 1; }
 .empty-state {

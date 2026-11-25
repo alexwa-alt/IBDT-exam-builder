@@ -88,6 +88,12 @@ def main():
 
     for f in DATA_FILES:
         put(f, (build / "data" / f).read_bytes())
+    # Optional: a fine-grained GitHub token (Actions: read and write on this repository only) that lets the
+    # site's Generate and Review buttons start workflows. Encrypted like everything else.
+    token = os.environ.get("GEN_DISPATCH_TOKEN", "").strip()
+    if token:
+        put("dispatch.json", json.dumps({"token": token, "repo": os.environ.get("GITHUB_REPOSITORY", ""),
+                                         "ref": os.environ.get("GITHUB_REF_NAME", "main")}).encode("utf-8"))
     questions = json.loads((build / "data" / "questions.json").read_text(encoding="utf-8"))
     for q in questions:
         for page in q["pages"] + q["ms"]:
