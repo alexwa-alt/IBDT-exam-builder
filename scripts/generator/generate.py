@@ -248,7 +248,8 @@ def main():
 
     from gemini import Gemini, QuotaError
     gem = Gemini(cfg["model"], cfg["temperature"], cfg["max_output_tokens"],
-                 max_calls=cfg["max_calls_per_question"] * count + 2, backup_model=cfg.get("backup_model"))
+                 max_calls=cfg["max_calls_per_question"] * count + 2, backup_model=cfg.get("backup_model"),
+                 busy_fallback=cfg.get("busy_fallback_model"), backup_busy_fallback=cfg.get("backup_busy_fallback_model"))
 
     attachments = []
     if drive:

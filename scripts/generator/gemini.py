@@ -41,13 +41,16 @@ class Upload:
 
 
 class Gemini:
-    def __init__(self, model, temperature=0.7, max_output_tokens=16000, max_calls=50, backup_model=None):
+    def __init__(self, model, temperature=0.7, max_output_tokens=16000, max_calls=50, backup_model=None,
+                 busy_fallback=None, backup_busy_fallback=None):
         self.keys = [(v, os.environ.get(v, "").strip()) for v in KEY_VARS]
         self.keys = [(v, k) for v, k in self.keys if k]
         if not self.keys:
             raise SystemExit("GEMINI_API_KEY is not set. Add your Gemini API key as a repository secret.")
         self.model, self.temperature, self.max_output_tokens = model, temperature, max_output_tokens
         self.backup_model = backup_model
+        # Model to switch to when Google says the current one is busy (503), for the main and the backup key.
+        self.busy_fallbacks = [busy_fallback, backup_busy_fallback]
         self.max_calls, self.calls = max_calls, 0
         self.tokens = self.input_tokens = self.output_tokens = 0
         self.usage = []                        # [input, output] tokens for each key, for the cost estimate
@@ -82,6 +85,15 @@ class Gemini:
             p = prices[min(i, len(prices) - 1)] or {"input": 0, "output": 0}
             total += (used_in * p["input"] + used_out * p["output"]) / 1e6
         return total
+
+    def _busy_fallback(self):
+        """Switch to this key's 'busy' fallback model once. Returns True if switched."""
+        fallback = self.busy_fallbacks[min(self.key_index, len(self.busy_fallbacks) - 1)]
+        if not fallback or fallback == self.model:
+            return False
+        print(f"::warning::{self.model} is busy (Google 503); switching to {fallback}.", flush=True)
+        self.model = fallback
+        return True
 
     @property
     def key_name(self):
@@ -131,7 +143,7 @@ class Gemini:
             response_mime_type="application/json", response_schema=schema,
             temperature=self.temperature if temperature is None else temperature,
             max_output_tokens=self.max_output_tokens)
-        delay, attempt = 20, 0
+        delay, attempt, busy = 20, 0, 0
         while attempt < 4:
             parts = [self._resolve(c) for c in contents]
             self.calls += 1
@@ -147,6 +159,10 @@ class Gemini:
                                      f"{', '.join(self.available_models()) or '(could not list them)'}. "
                                      "Change 'model:' in generator.yaml.") from e
                 attempt += 1
+                busy = busy + 1 if code == 503 else 0
+                if busy >= 2 and self._busy_fallback():
+                    delay, attempt, busy = 20, 0, 0   # fresh retries on the other model
+                    continue
                 if code in (429, 500, 502, 503, 504) and attempt < 4:
                     time.sleep(delay)
                     delay *= 2

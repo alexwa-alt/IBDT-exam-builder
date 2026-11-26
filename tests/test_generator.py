@@ -343,3 +343,35 @@ def test_backup_key_uses_backup_model_and_free_price(monkeypatch):
     gem.ask(["hello"], Review)
     assert gem.model == "flash-model" and gem.key_name == "GEMINI_API_KEY2"
     assert gem.cost([{"input": 2, "output": 12}, {"input": 0, "output": 0}]) == 0
+
+
+def test_busy_model_falls_back(monkeypatch):
+    """Two 503 'high demand' replies on the backup key's model -> switch to its busy fallback and succeed."""
+    import types as pytypes
+    import gemini
+    from google.genai import errors
+    from schema import Review
+    monkeypatch.setattr(gemini.time, "sleep", lambda s: None)
+    calls = []
+
+    class BusyClient:
+        def __init__(self, key):
+            self.models = pytypes.SimpleNamespace(generate_content=self.generate)
+            self.files = pytypes.SimpleNamespace(upload=lambda **k: None)
+
+        def generate(self, model, contents, config):
+            calls.append(model)
+            if model == "busy-flash":
+                raise errors.ServerError(503, {"error": {"code": 503, "message": "high demand",
+                                                         "status": "UNAVAILABLE"}})
+            usage = pytypes.SimpleNamespace(total_token_count=1, prompt_token_count=1, candidates_token_count=0,
+                                            thoughts_token_count=0)
+            return pytypes.SimpleNamespace(parsed={"passed": True, "problems": [], "fixes": []},
+                                           usage_metadata=usage)
+
+    monkeypatch.setenv("GEMINI_API_KEY", "main")
+    monkeypatch.delenv("GEMINI_API_KEY2", raising=False)
+    monkeypatch.setattr(gemini.Gemini, "_make_client", lambda self, key: BusyClient(key))
+    gem = gemini.Gemini("busy-flash", busy_fallback="older-flash")
+    assert gem.ask(["hello"], Review)["passed"]
+    assert calls == ["busy-flash", "busy-flash", "older-flash"] and gem.model == "older-flash"

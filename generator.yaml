@@ -6,6 +6,10 @@ model: gemini-3.1-pro-preview
 # Used with the backup key (GEMINI_API_KEY2), a free-tier key: free keys can't use the Pro preview model.
 # "gemini-flash-latest" always points at Google's current Flash model.
 backup_model: gemini-flash-latest
+# If Google says a model is busy ("503 high demand") twice in a row, switch to this model for the rest of the run.
+# Blank = keep retrying the same model. Older models are often less busy.
+busy_fallback_model:                       # for the main key (blank: stay on the Pro model)
+backup_busy_fallback_model: gemini-2.5-flash
 temperature: 0.7
 # Price per million tokens in US dollars, only used to estimate each run's cost in its summary.
 # Check https://ai.google.dev/gemini-api/docs/pricing when changing the model. Thinking counts as output.
