@@ -107,7 +107,8 @@ browser, so the public Actions page shows only scrambled text.
 
 ### Setting up the generator (browser only)
 1. **Gemini key.** At <https://aistudio.google.com/apikey> create an API key. Add it as repository secret
-   `GEMINI_API_KEY`.
+   `GEMINI_API_KEY`. Optionally add a second key (from another project) as `GEMINI_API_KEY2`: it is used
+   automatically when the first runs out of credit or hits its daily quota.
 2. **Drive folders.** In the bank folder create two folders, `reference` and `generation-log`. Give the robot
    (service) account **Contributor** on `questions`, `reference` and `generation-log` (it already has Viewer on the
    bank). Share with it as **Viewer**: the past-paper PDF *Case Study style questions - from past syllabus* and the

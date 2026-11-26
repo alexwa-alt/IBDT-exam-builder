@@ -1,10 +1,14 @@
 """A small wrapper round the Gemini API (google-genai package): structured JSON replies, retries, a call cap.
 
-The key is read from the GEMINI_API_KEY environment variable (a GitHub secret), never from a file.
+Keys are read from environment variables (GitHub secrets), never from a file:
+  GEMINI_API_KEY    the main key
+  GEMINI_API_KEY2   optional backup key, used when the main one is out of credit or has hit its daily quota
 """
 import json
 import os
 import time
+
+KEY_VARS = ("GEMINI_API_KEY", "GEMINI_API_KEY2")
 
 
 class QuotaError(RuntimeError):
@@ -22,30 +26,79 @@ def out_of_credit(e):
         or "billing" in text and "resource_exhausted" in text
 
 
+def daily_quota(e):
+    text = str(e).lower()
+    return getattr(e, "code", None) == 429 and "quota" in text and "per day" in text
+
+
+class Upload:
+    """A file to send with a request. It is uploaded lazily, once per key, because an uploaded file belongs to the
+    key (project) that uploaded it and cannot be used after switching to the backup key."""
+
+    def __init__(self, path, mime):
+        self.path, self.mime = str(path), mime
+
+
 class Gemini:
     def __init__(self, model, temperature=0.7, max_output_tokens=16000, max_calls=50):
-        from google import genai  # imported here so tests can run without the package
-        key = os.environ.get("GEMINI_API_KEY", "").strip()
-        if not key:
+        self.keys = [(v, os.environ.get(v, "").strip()) for v in KEY_VARS]
+        self.keys = [(v, k) for v, k in self.keys if k]
+        if not self.keys:
             raise SystemExit("GEMINI_API_KEY is not set. Add your Gemini API key as a repository secret.")
+        self.model, self.temperature, self.max_output_tokens = model, temperature, max_output_tokens
+        self.max_calls, self.calls = max_calls, 0
+        self.tokens = self.input_tokens = self.output_tokens = 0
+        self.key_index = -1
+        self._next_key()
+
+    def _make_client(self, key):
+        from google import genai  # imported here so tests can run without the package
         # Preview models (e.g. gemini-3.1-pro-preview) are only served on the v1beta API, and newer versions of
         # the google-genai package default to v1, so ask for v1beta explicitly.
-        self.client = genai.Client(api_key=key, http_options={"api_version": "v1beta"})
-        self.model, self.temperature, self.max_output_tokens = model, temperature, max_output_tokens
-        self.max_calls, self.calls, self.tokens = max_calls, 0, 0
-        self._files = {}
+        return genai.Client(api_key=key, http_options={"api_version": "v1beta"})
+
+    def _next_key(self):
+        """Move to the next key. Returns False when there is none left."""
+        if self.key_index + 1 >= len(self.keys):
+            return False
+        self.key_index += 1
+        name, key = self.keys[self.key_index]
+        self.client = self._make_client(key)
+        self._files = {}                       # uploads made with the previous key can't be used
+        if self.key_index:
+            print(f"::warning::Switched to the backup Gemini key ({name}).", flush=True)
+        return True
+
+    @property
+    def key_name(self):
+        return self.keys[self.key_index][0]
+
+    def _refused(self, e):
+        """Called when Gemini refuses for credit or daily quota: switch key if possible, else raise QuotaError."""
+        reason = CREDIT_MSG if out_of_credit(e) else "Gemini daily quota used up"
+        print(f"::warning::{self.key_name}: {reason.split(':')[0]}.", flush=True)
+        if not self._next_key():
+            raise QuotaError(reason + (" (on every key)" if len(self.keys) > 1 else "")) from e
 
     def upload(self, path, mime="application/pdf"):
-        """Send a PDF to Gemini's file store once per run (files expire there after 48 hours)."""
-        path = str(path)
-        if path not in self._files:
+        """A PDF to attach to requests. Checks now that it can be sent, so problems show up early."""
+        item = Upload(path, mime)
+        self._resolve(item)
+        return item
+
+    def _resolve(self, item):
+        """The uploaded-file object for item with the current key (uploading it if needed)."""
+        if not isinstance(item, Upload):
+            return item
+        while item.path not in self._files:
             try:
-                self._files[path] = self.client.files.upload(file=path, config={"mime_type": mime})
+                self._files[item.path] = self.client.files.upload(file=item.path, config={"mime_type": item.mime})
             except Exception as e:  # noqa: BLE001
-                if out_of_credit(e):
-                    raise QuotaError(CREDIT_MSG) from e
+                if out_of_credit(e) or daily_quota(e):
+                    self._refused(e)          # switches key and loops, or raises QuotaError
+                    continue
                 raise
-        return self._files[path]
+        return self._files[item.path]
 
     def available_models(self):
         """Names of the models that can write text with this key (model names are not secret)."""
@@ -56,7 +109,7 @@ class Gemini:
             return []
 
     def ask(self, contents, schema, temperature=None):
-        """contents: list of strings and uploaded files. Returns an instance of the Pydantic schema."""
+        """contents: list of strings and uploads. Returns an instance of the Pydantic schema."""
         from google.genai import errors, types
         if self.calls >= self.max_calls:
             raise QuotaError(f"reached this run's limit of {self.max_calls} Gemini calls")
@@ -64,34 +117,39 @@ class Gemini:
             response_mime_type="application/json", response_schema=schema,
             temperature=self.temperature if temperature is None else temperature,
             max_output_tokens=self.max_output_tokens)
-        delay = 20
-        for attempt in range(4):
+        delay, attempt = 20, 0
+        while attempt < 4:
+            parts = [self._resolve(c) for c in contents]
             self.calls += 1
             try:
-                r = self.client.models.generate_content(model=self.model, contents=contents, config=config)
+                r = self.client.models.generate_content(model=self.model, contents=parts, config=config)
             except errors.APIError as e:
                 code = getattr(e, "code", None)
-                if out_of_credit(e):
-                    raise QuotaError(CREDIT_MSG) from e
-                if code == 429 and "quota" in str(e).lower() and "per day" in str(e).lower():
-                    raise QuotaError("Gemini daily quota used up") from e
+                if out_of_credit(e) or daily_quota(e):
+                    self._refused(e)          # switched key: try the same request again
+                    continue
                 if code == 404:
                     raise SystemExit(f"Gemini model {self.model!r} was not found. Models this key can use: "
                                      f"{', '.join(self.available_models()) or '(could not list them)'}. "
                                      "Change 'model:' in generator.yaml.") from e
-                if code in (429, 500, 502, 503, 504) and attempt < 3:
+                attempt += 1
+                if code in (429, 500, 502, 503, 504) and attempt < 4:
                     time.sleep(delay)
                     delay *= 2
                     continue
                 raise
+            attempt += 1
             usage = getattr(r, "usage_metadata", None)
             self.tokens += getattr(usage, "total_token_count", 0) or 0
+            self.input_tokens += getattr(usage, "prompt_token_count", 0) or 0
+            self.output_tokens += (getattr(usage, "candidates_token_count", 0) or 0) + \
+                (getattr(usage, "thoughts_token_count", 0) or 0)
             if getattr(r, "parsed", None) is not None:
                 return r.parsed
             try:
                 return schema.model_validate(json.loads(r.text))
             except Exception:  # noqa: BLE001 - a cut-off or malformed reply: try once more
-                if attempt < 3:
+                if attempt < 4:
                     continue
                 raise
         raise RuntimeError("Gemini did not return a usable reply")

@@ -330,7 +330,12 @@ def main():
             summary(f"- Not added ({result}): {label}")
         run["questions"].append(log)
 
+    price = cfg.get("price_per_million") or {"input": 0, "output": 0}
+    cost = (gem.input_tokens * price["input"] + gem.output_tokens * price["output"]) / 1e6
     run["gemini_calls"], run["tokens"] = gem.calls, gem.tokens
+    run["input_tokens"], run["output_tokens"], run["estimated_cost_usd"] = gem.input_tokens, gem.output_tokens, \
+        round(cost, 3)
+    run["key_used"] = gem.key_name
     run["added"] = added
     stamp = datetime.datetime.now().strftime("%Y-%m-%d_%H%M%S")
     if args.dry_run:
@@ -341,9 +346,11 @@ def main():
             drive.write_json(cfg["drive"]["log_folder"], f"{stamp}.json", run)
         except Exception as e:  # noqa: BLE001
             say(f"::warning::Could not write the private log to Drive ({type(e).__name__}).")
-    say(f"Done: {len(added)} added; {gem.calls} Gemini calls, {gem.tokens} tokens.")
+    say(f"Done: {len(added)} added; {gem.calls} Gemini calls, {gem.input_tokens} input + {gem.output_tokens} "
+        f"output tokens, about ${cost:.2f}.")
     where = f"{args.out}/log_{stamp}.json" if args.dry_run else f"Drive {cfg['drive']['log_folder']}/{stamp}.json"
-    summary(f"\n{len(added)} question(s) added; {gem.calls} Gemini calls. Details (private) are in `{where}`.")
+    summary(f"\n{len(added)} question(s) added; {gem.calls} Gemini calls, about ${cost:.2f} "
+            f"({gem.input_tokens} input and {gem.output_tokens} output tokens). Details (private) are in `{where}`.")
     gh_out = os.environ.get("GITHUB_OUTPUT")
     if gh_out:
         with open(gh_out, "a") as f:
