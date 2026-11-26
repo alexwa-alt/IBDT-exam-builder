@@ -17,5 +17,5 @@ jobs:
         with:
           python-version: '3.12'
           cache: pip
-      - run: pip install -r requirements.txt pydantic pytest google-api-python-client google-auth
+      - run: pip install -r requirements.txt pydantic pytest google-api-python-client google-auth google-genai==3.6.1
       - run: python -m pytest -q tests
