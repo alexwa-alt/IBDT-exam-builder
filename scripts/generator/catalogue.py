@@ -114,4 +114,9 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    from gemini import QuotaError
+    try:
+        main()
+    except QuotaError as e:
+        print(f"::error::{e}. Case studies finished so far are saved; the next run carries on from there.")
+        sys.exit(1)

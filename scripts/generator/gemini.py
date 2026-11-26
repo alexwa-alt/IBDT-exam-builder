@@ -11,6 +11,17 @@ class QuotaError(RuntimeError):
     """Gemini refused because the quota is used up, or this run reached its own call limit."""
 
 
+CREDIT_MSG = ("Gemini credit used up: the API key's prepaid credit or billing limit is spent. Top up or raise the "
+              "limit at https://aistudio.google.com (your project -> Billing), then run again")
+
+
+def out_of_credit(e):
+    """True for 'payment required' (402) and prepaid-credit / billing errors from Gemini."""
+    text = str(e).lower()
+    return getattr(e, "code", None) == 402 or "prepayment" in text or "credits are depleted" in text \
+        or "billing" in text and "resource_exhausted" in text
+
+
 class Gemini:
     def __init__(self, model, temperature=0.7, max_output_tokens=16000, max_calls=50):
         from google import genai  # imported here so tests can run without the package
@@ -28,7 +39,12 @@ class Gemini:
         """Send a PDF to Gemini's file store once per run (files expire there after 48 hours)."""
         path = str(path)
         if path not in self._files:
-            self._files[path] = self.client.files.upload(file=path, config={"mime_type": mime})
+            try:
+                self._files[path] = self.client.files.upload(file=path, config={"mime_type": mime})
+            except Exception as e:  # noqa: BLE001
+                if out_of_credit(e):
+                    raise QuotaError(CREDIT_MSG) from e
+                raise
         return self._files[path]
 
     def available_models(self):
@@ -55,6 +71,8 @@ class Gemini:
                 r = self.client.models.generate_content(model=self.model, contents=contents, config=config)
             except errors.APIError as e:
                 code = getattr(e, "code", None)
+                if out_of_credit(e):
+                    raise QuotaError(CREDIT_MSG) from e
                 if code == 429 and "quota" in str(e).lower() and "per day" in str(e).lower():
                     raise QuotaError("Gemini daily quota used up") from e
                 if code == 404:

@@ -253,6 +253,10 @@ def main():
         for i, fid in enumerate(cfg["drive"].get("specimen_sl_paper2") or []):
             try:
                 attachments.append(gem.upload(drive.download(fid, work / f"specimen_{i}.pdf")))
+            except QuotaError as e:   # no point writing questions without credit
+                say(f"::error::{e}.")
+                summary(f"- **Stopped: {e}.**")
+                return 1
             except Exception as e:  # noqa: BLE001 - the prompt still works without the specimen
                 say(f"::warning::Specimen part {i + 1} could not be attached ({type(e).__name__}); "
                     "share it with the robot account.")
@@ -271,7 +275,7 @@ def main():
            "requested_by": requested_by, "model": cfg["model"], "questions": []}
     say(f"Bank: {coverage.summary(coverage.coverage(bank, syl))}")
     summary("## Question generator\n")
-    added = []
+    added, stopped = [], False
     for n in range(count):
         cov = coverage.coverage(bank, syl)
         if cov["today"] >= cfg["max_per_day"]:
@@ -292,8 +296,9 @@ def main():
         try:
             q, result = write_one(gem, target, cs, bank, cov, syl, cts, cfg, exemplars, attachments, log)
         except QuotaError as e:
-            say(f"::warning::{e}; stopping.")
-            summary(f"- Stopped early: {e}.")
+            say(f"::error::{e}; stopping.")
+            summary(f"- **Stopped early: {e}.**")
+            stopped = True
             log["result"] = str(e)
             run["questions"].append(log)
             break
@@ -341,7 +346,7 @@ def main():
     if gh_out:
         with open(gh_out, "a") as f:
             f.write(f"added={len(added)}\n")
-    return 0
+    return 1 if stopped and not added else 0
 
 
 if __name__ == "__main__":

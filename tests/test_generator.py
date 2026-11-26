@@ -215,3 +215,24 @@ def test_catalogue_topic_ids_accepts_names_and_ids():
     import catalogue
     assert catalogue.topic_ids(["A1.1", "B2.1 The design process", "Inclusive design", "Ergonomics (A1.1)",
                                 "A3.2", "nonsense"]) == ["A1.1", "B2.1", "C1.2"]
+
+
+def test_out_of_credit_is_recognised():
+    import gemini
+
+    class FakeError(Exception):
+        code = 402
+    assert gemini.out_of_credit(FakeError("Your prepayment credits are depleted."))
+    assert not gemini.out_of_credit(ValueError("404 model not found"))
+
+
+class CreditGoneGemini(FakeGemini):
+    def ask(self, contents, schema, temperature=None):
+        import gemini
+        raise gemini.QuotaError(gemini.CREDIT_MSG)
+
+
+def test_loop_passes_credit_error_up():
+    import gemini
+    with pytest.raises(gemini.QuotaError):
+        generate.write_one(CreditGoneGemini([]), TARGET, None, [], cov(), SYL, CTS, CFG, "", [], {"steps": []})
