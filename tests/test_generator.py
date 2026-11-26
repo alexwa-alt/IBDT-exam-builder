@@ -255,3 +255,78 @@ def test_specimen_attached_to_first_writer_call_only():
     assert result == "passed"
     with_specimen = ["SPECIMEN" in c for c in gem.seen]
     assert with_specimen == [True, False, False, False, False]
+
+
+# ---------------------------------------------------------------- backup Gemini key
+class _APIError(Exception):
+    def __init__(self, code, msg):
+        super().__init__(msg)
+        self.code = code
+
+
+def _fake_gemini(monkeypatch, behaviour):
+    """A Gemini object whose client for each key follows behaviour[key]: 'ok' or 'credit'."""
+    import types as pytypes
+    import gemini
+    from google.genai import errors
+
+    class FakeClient:
+        def __init__(self, key):
+            self.key = key
+            self.files = pytypes.SimpleNamespace(upload=self.upload)
+            self.models = pytypes.SimpleNamespace(generate_content=self.generate)
+            self.uploaded = []
+
+        def upload(self, file, config):
+            if behaviour[self.key] == "credit":
+                raise _APIError(402, "Your prepayment credits are depleted.")
+            self.uploaded.append(file)
+            return f"{self.key}:{file}"
+
+        def generate(self, model, contents, config):
+            if behaviour[self.key] == "credit":
+                raise errors.APIError(402, {"error": {"code": 402, "message": "Your prepayment credits are depleted.",
+                                                      "status": "RESOURCE_EXHAUSTED"}})
+            assert all(not str(c).startswith("main:") for c in contents if ":" in str(c) and "/" in str(c))
+            usage = pytypes.SimpleNamespace(total_token_count=30, prompt_token_count=20, candidates_token_count=6,
+                                            thoughts_token_count=4)
+            return pytypes.SimpleNamespace(parsed={"passed": True, "problems": [], "fixes": []},
+                                           usage_metadata=usage, contents=contents)
+
+    monkeypatch.setenv("GEMINI_API_KEY", "main")
+    monkeypatch.setenv("GEMINI_API_KEY2", "backup")
+    monkeypatch.setattr(gemini.Gemini, "_make_client", lambda self, key: FakeClient(key))
+    return gemini.Gemini("test-model")
+
+
+def test_backup_key_used_when_main_key_out_of_credit(monkeypatch, tmp_path):
+    from schema import Review
+    gem = _fake_gemini(monkeypatch, {"main": "credit", "backup": "ok"})
+    pdf = tmp_path / "s.pdf"
+    pdf.write_bytes(b"%PDF")
+    item = gem.upload(pdf)                       # main key refuses the upload -> switches to backup
+    assert gem.key_name == "GEMINI_API_KEY2"
+    result = gem.ask(["hello", item], Review)
+    assert result == {"passed": True, "problems": [], "fixes": []}
+    assert gem.input_tokens == 20 and gem.output_tokens == 10
+
+
+def test_switches_key_mid_run_and_reuploads(monkeypatch, tmp_path):
+    from schema import Review
+    behaviour = {"main": "ok", "backup": "ok"}
+    gem = _fake_gemini(monkeypatch, behaviour)
+    pdf = tmp_path / "s.pdf"
+    pdf.write_bytes(b"%PDF")
+    item = gem.upload(pdf)
+    assert gem.key_name == "GEMINI_API_KEY"
+    behaviour["main"] = "credit"                 # credit runs out part-way through
+    gem.ask(["hello", item], Review)
+    assert gem.key_name == "GEMINI_API_KEY2" and gem.client.uploaded == [str(pdf)]
+
+
+def test_quota_error_when_every_key_is_out_of_credit(monkeypatch):
+    import gemini
+    from schema import Review
+    gem = _fake_gemini(monkeypatch, {"main": "credit", "backup": "credit"})
+    with pytest.raises(gemini.QuotaError, match="every key"):
+        gem.ask(["hello"], Review)
