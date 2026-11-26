@@ -236,3 +236,22 @@ def test_loop_passes_credit_error_up():
     import gemini
     with pytest.raises(gemini.QuotaError):
         generate.write_one(CreditGoneGemini([]), TARGET, None, [], cov(), SYL, CTS, CFG, "", [], {"steps": []})
+
+
+def test_specimen_attached_to_first_writer_call_only():
+    good_d = json.loads((ROOT / "tests" / "fixtures" / "good_draft.json").read_text())
+    bad = copy.deepcopy(good_d)
+    bad["parts"][2]["marks"] = 2
+    no = {"passed": False, "problems": ["too easy"], "fixes": ["add a judgement"]}
+    yes = {"passed": True, "problems": [], "fixes": []}
+
+    class Recording(FakeGemini):
+        def ask(self, contents, schema, temperature=None):
+            self.seen = getattr(self, "seen", []) + [contents]
+            return super().ask(contents, schema, temperature)
+
+    gem = Recording([bad, good_d, no, good_d, yes])   # writer, repair, review, revision, review
+    q, result = generate.write_one(gem, TARGET, None, [], cov(), SYL, CTS, CFG, "", ["SPECIMEN"], {"steps": []})
+    assert result == "passed"
+    with_specimen = ["SPECIMEN" in c for c in gem.seen]
+    assert with_specimen == [True, False, False, False, False]

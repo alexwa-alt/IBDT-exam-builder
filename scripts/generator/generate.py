@@ -151,8 +151,10 @@ def write_one(gem, target, cs, bank, cov, syl, cts, cfg, exemplars, attachments,
             qid_holder["id"] = convert.unique_id(draft.title, cov["ids"])
         return convert.to_question(draft, qid_holder["id"], target=target, case_study=cs, model=gem.model)
 
-    def draft_until_valid(prompt):
-        draft = gem.ask(attachments + [prompt], Draft)
+    # The specimen PDFs go with the first writer call only: repairs and revisions already have the draft (in the
+    # specimen style) to work from, and leaving the PDFs out makes those calls much cheaper.
+    def draft_until_valid(prompt, first=False):
+        draft = gem.ask((attachments if first else []) + [prompt], Draft)
         q = as_question(draft)
         for attempt in range(cfg["repair_attempts"] + 1):
             errors = validate(q, syl, cts, cov, cfg)
@@ -161,11 +163,11 @@ def write_one(gem, target, cs, bank, cov, syl, cts, cfg, exemplars, attachments,
                 return q
             if attempt == cfg["repair_attempts"]:
                 break
-            q = as_question(gem.ask(attachments + [fix_prompt(base, q, errors)], Draft))
+            q = as_question(gem.ask([fix_prompt(base, q, errors)], Draft))
         log["last_draft"] = convert.to_yaml(q)
         return None
 
-    q = draft_until_valid(base)
+    q = draft_until_valid(base, first=True)
     if not q:
         return None, "failed the checks"
     for round_ in range(2):
