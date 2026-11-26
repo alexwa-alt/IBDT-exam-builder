@@ -62,7 +62,7 @@ def main():
     args = ap.parse_args()
     cfg = yaml.safe_load((ROOT / "generator.yaml").read_text(encoding="utf-8"))
     from gemini import Gemini
-    gem = Gemini(cfg["model"], 0.1, 32000, max_calls=80)
+    gem = Gemini(cfg["model"], 0.1, 32000, max_calls=80, backup_model=cfg.get("backup_model"))
 
     drive = None
     if args.pdf:

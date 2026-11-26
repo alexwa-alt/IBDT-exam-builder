@@ -248,7 +248,7 @@ def main():
 
     from gemini import Gemini, QuotaError
     gem = Gemini(cfg["model"], cfg["temperature"], cfg["max_output_tokens"],
-                 max_calls=cfg["max_calls_per_question"] * count + 2)
+                 max_calls=cfg["max_calls_per_question"] * count + 2, backup_model=cfg.get("backup_model"))
 
     attachments = []
     if drive:
@@ -330,12 +330,11 @@ def main():
             summary(f"- Not added ({result}): {label}")
         run["questions"].append(log)
 
-    price = cfg.get("price_per_million") or {"input": 0, "output": 0}
-    cost = (gem.input_tokens * price["input"] + gem.output_tokens * price["output"]) / 1e6
+    cost = gem.cost([cfg.get("price_per_million"), cfg.get("backup_price_per_million")])
     run["gemini_calls"], run["tokens"] = gem.calls, gem.tokens
     run["input_tokens"], run["output_tokens"], run["estimated_cost_usd"] = gem.input_tokens, gem.output_tokens, \
         round(cost, 3)
-    run["key_used"] = gem.key_name
+    run["key_used"], run["model_used"] = gem.key_name, gem.model
     run["added"] = added
     stamp = datetime.datetime.now().strftime("%Y-%m-%d_%H%M%S")
     if args.dry_run:

@@ -2,7 +2,8 @@
 
 Keys are read from environment variables (GitHub secrets), never from a file:
   GEMINI_API_KEY    the main key
-  GEMINI_API_KEY2   optional backup key, used when the main one is out of credit or has hit its daily quota
+  GEMINI_API_KEY2   optional backup key, used when the main one is out of credit or has hit its daily quota.
+                    It can use a different model (backup_model), e.g. Flash for a free-tier key.
 """
 import json
 import os
@@ -40,14 +41,16 @@ class Upload:
 
 
 class Gemini:
-    def __init__(self, model, temperature=0.7, max_output_tokens=16000, max_calls=50):
+    def __init__(self, model, temperature=0.7, max_output_tokens=16000, max_calls=50, backup_model=None):
         self.keys = [(v, os.environ.get(v, "").strip()) for v in KEY_VARS]
         self.keys = [(v, k) for v, k in self.keys if k]
         if not self.keys:
             raise SystemExit("GEMINI_API_KEY is not set. Add your Gemini API key as a repository secret.")
         self.model, self.temperature, self.max_output_tokens = model, temperature, max_output_tokens
+        self.backup_model = backup_model
         self.max_calls, self.calls = max_calls, 0
         self.tokens = self.input_tokens = self.output_tokens = 0
+        self.usage = []                        # [input, output] tokens for each key, for the cost estimate
         self.key_index = -1
         self._next_key()
 
@@ -65,9 +68,20 @@ class Gemini:
         name, key = self.keys[self.key_index]
         self.client = self._make_client(key)
         self._files = {}                       # uploads made with the previous key can't be used
+        self.usage.append([0, 0])
         if self.key_index:
-            print(f"::warning::Switched to the backup Gemini key ({name}).", flush=True)
+            if self.backup_model:
+                self.model = self.backup_model
+            print(f"::warning::Switched to the backup Gemini key ({name}), model {self.model}.", flush=True)
         return True
+
+    def cost(self, prices):
+        """Estimated US dollars: prices is a list of {input, output} per million tokens, one per key."""
+        total = 0.0
+        for i, (used_in, used_out) in enumerate(self.usage):
+            p = prices[min(i, len(prices) - 1)] or {"input": 0, "output": 0}
+            total += (used_in * p["input"] + used_out * p["output"]) / 1e6
+        return total
 
     @property
     def key_name(self):
@@ -141,9 +155,13 @@ class Gemini:
             attempt += 1
             usage = getattr(r, "usage_metadata", None)
             self.tokens += getattr(usage, "total_token_count", 0) or 0
-            self.input_tokens += getattr(usage, "prompt_token_count", 0) or 0
-            self.output_tokens += (getattr(usage, "candidates_token_count", 0) or 0) + \
+            used_in = getattr(usage, "prompt_token_count", 0) or 0
+            used_out = (getattr(usage, "candidates_token_count", 0) or 0) + \
                 (getattr(usage, "thoughts_token_count", 0) or 0)
+            self.input_tokens += used_in
+            self.output_tokens += used_out
+            self.usage[self.key_index][0] += used_in
+            self.usage[self.key_index][1] += used_out
             if getattr(r, "parsed", None) is not None:
                 return r.parsed
             try:
