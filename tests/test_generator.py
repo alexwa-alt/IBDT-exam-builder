@@ -330,3 +330,16 @@ def test_quota_error_when_every_key_is_out_of_credit(monkeypatch):
     gem = _fake_gemini(monkeypatch, {"main": "credit", "backup": "credit"})
     with pytest.raises(gemini.QuotaError, match="every key"):
         gem.ask(["hello"], Review)
+
+
+def test_backup_key_uses_backup_model_and_free_price(monkeypatch):
+    from schema import Review
+    import gemini
+    monkeypatch.setenv("GEMINI_API_KEY", "main")
+    monkeypatch.setenv("GEMINI_API_KEY2", "backup")
+    gem = _fake_gemini(monkeypatch, {"main": "credit", "backup": "ok"})
+    gem = gemini.Gemini("pro-model", backup_model="flash-model")
+    assert gem.model == "pro-model"
+    gem.ask(["hello"], Review)
+    assert gem.model == "flash-model" and gem.key_name == "GEMINI_API_KEY2"
+    assert gem.cost([{"input": 2, "output": 12}, {"input": 0, "output": 0}]) == 0
