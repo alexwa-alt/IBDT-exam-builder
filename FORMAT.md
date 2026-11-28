@@ -49,6 +49,9 @@ HL-only or old-syllabus terms. Problems are listed in `build/data/review.json`.
 **Fields added automatically** (leave them as they are):
 - `source.generated_by`, `source.generated_on`, `source.model`, `source.target`: on questions written by Gemini
   (`scripts/generator/`). The site marks these questions "AI-written".
+- `source.photo`: on questions Gemini wrote from a product photo uploaded on the website. The photo is the
+  question's `photo.jpg` (Figure 1); this value (part of the photo's fingerprint) groups questions written on the
+  same photo, so a second one takes a different angle.
 - `review_history`: a list of decisions made with the website's Review buttons (date, who, status, reason).
   `status: rejected` questions are hidden on the site unless the Rejected filter is ticked; their reasons are
   shown to Gemini so it avoids the same problems.

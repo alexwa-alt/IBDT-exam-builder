@@ -9,12 +9,15 @@ $statements
 
 $case_study_block
 
+$terms_block
+
 FIGURES AND DATA
-You cannot include photographs or drawings. Carry the question with text and one or two DATA TABLES (a
-10-mark question may have up to three). At least one part must need data from a table. Number tables from
-Table 1 within this question and refer to every table by number in at least one part. Because table data are
-written for this practice paper, end the stimulus with a note block: "Data written for this practice paper."
-(or "Data written for this practice paper (approximate values)."). Keep real product facts accurate.
+$figures_block
+Carry the question with text and one or two DATA TABLES (a 10-mark question may have up to three). At least one
+part must need data from a table. Number tables from Table 1 within this question and refer to every table by
+number in at least one part. Because table data are written for this practice paper, end the stimulus with a
+note block: "Data written for this practice paper." (or "Data written for this practice paper (approximate
+values)."). Keep real product facts accurate.
 $images_line
 
 $rules
@@ -58,4 +61,6 @@ Return only JSON matching the schema.
   "Using Table 1, <command term> ...".
 - answers: one marking point per item, MORE points than the part's marks, alternatives separated by " / ".
 - notes: how to award marks; for 3-4 mark Explain/Analyse/Evaluate/Justify say what full marks need.
-- source_note: one sentence saying what the case study is from and what was written for this practice paper.
+- source_note: one sentence saying what the case study (or photograph) is from and what was written for this
+  practice paper.
+- figure_caption: only when a photograph is attached, e.g. "Figure 1: The ... in use"; otherwise leave it out.

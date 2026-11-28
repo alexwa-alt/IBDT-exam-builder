@@ -12,6 +12,9 @@ on:
       request:
         description: 'Encrypted request from the staff site (leave blank when running by hand)'
         required: false
+      photo:
+        description: 'Encrypted product photo from the staff site (leave blank when running by hand)'
+        required: false
       count:
         description: 'How many questions (1-5)'
         default: '1'
@@ -26,6 +29,9 @@ on:
         required: false
       case_study:
         description: 'Past-paper reference, e.g. 26M.2.SL.TZ1.6 (blank = choose automatically)'
+        required: false
+      command_terms:
+        description: 'Command terms, each used in at least one part, e.g. Explain,Evaluate (blank = Gemini chooses)'
         required: false
 
 permissions:
@@ -66,12 +72,15 @@ jobs:
           DIFFICULTY: ${{ inputs.difficulty }}
           STATEMENTS: ${{ inputs.statements }}
           CASE_STUDY: ${{ inputs.case_study }}
+          COMMAND_TERMS: ${{ inputs.command_terms }}
+          PHOTO: ${{ inputs.photo }}           # read by generate.py itself (too long for a command-line argument)
         run: |
           args=(--count "$COUNT")
           [ -n "$MARKS" ] && args+=(--marks "$MARKS")
           [ -n "$DIFFICULTY" ] && args+=(--difficulty "$DIFFICULTY")
           [ -n "$STATEMENTS" ] && args+=(--statements "$STATEMENTS")
           [ -n "$CASE_STUDY" ] && args+=(--case-study "$CASE_STUDY")
+          [ -n "$COMMAND_TERMS" ] && args+=(--command-terms "$COMMAND_TERMS")
           [ -n "$REQUEST" ] && args+=(--request "$REQUEST")
           python scripts/generator/generate.py "${args[@]}"
 

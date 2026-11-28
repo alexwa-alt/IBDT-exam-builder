@@ -78,7 +78,8 @@ class Drive:
             raise RuntimeError(f"questions/{qid} already exists in Drive")
         new = self.folder(qid, parent=qfolder, create=True)
         for name, data in files.items():
-            mime = "text/yaml" if name.endswith(".yaml") else "image/png"
+            ext = name.rsplit(".", 1)[-1].lower()
+            mime = {"yaml": "text/yaml", "jpg": "image/jpeg", "jpeg": "image/jpeg"}.get(ext, "image/png")
             self.write(new, name, data, mime)
         return new
 

@@ -32,7 +32,7 @@ def coverage(bank, syl):
     """syl: {id: statement} from syllabus.json."""
     live = [q for q in bank if q.get("status") != "rejected"]
     cov = {"total": len(live), "marks": Counter(), "difficulty": Counter(), "topics": Counter(),
-           "statements": Counter(), "early": 0, "refs": Counter(), "ids": {q["id"] for q in bank},
+           "statements": Counter(), "terms": Counter(), "photos": Counter(), "early": 0, "refs": Counter(), "ids": {q["id"] for q in bank},
            "today": 0, "feedback": []}
     today = datetime.date.today().isoformat()
     for q in bank:
@@ -48,6 +48,9 @@ def coverage(bank, syl):
         cov["difficulty"][q.get("difficulty")] += 1
         sts = statements_of(q)
         cov["statements"].update(sts)
+        cov["terms"].update(p.get("command_term") for p in q.get("parts", []) if p.get("command_term"))
+        if src.get("photo"):
+            cov["photos"][src["photo"]] += 1
         cov["topics"].update({s.rsplit(".", 1)[0] for s in sts})
         if sts and all(syl.get(s, {}).get("term_index") == 0 for s in sts):
             cov["early"] += 1
@@ -66,8 +69,20 @@ def _most_needed(counts, shares, total):
     return max(shares, key=lambda k: shares[k] * (total + 1) - counts.get(k, 0))
 
 
-def choose_target(cov, syl, cfg, rng=None, marks=None, difficulty=None, statements=None):
-    """Pick marks, difficulty and 2–4 statement ids, aiming at the bank's gaps. Explicit values win."""
+MAX_TERMS = 3          # command terms a request may ask for (a question has 3 or 4 parts)
+
+
+def least_used_terms(cov, allowed, n=3):
+    """The n allowed command terms the bank uses least: a soft suggestion when none were asked for."""
+    return sorted(allowed, key=lambda t: (cov["terms"].get(t, 0), t))[:n]
+
+
+def choose_target(cov, syl, cfg, rng=None, marks=None, difficulty=None, statements=None, command_terms=None,
+                  allowed_terms=None):
+    """Pick marks, difficulty and 2–4 statement ids, aiming at the bank's gaps. Explicit values win.
+
+    command_terms: terms that must each start at least one part (at most MAX_TERMS, all in allowed_terms).
+    Without them the target carries "suggested_terms", the least-used ones, which Gemini may ignore."""
     rng = rng or random.Random()
     shares = cfg["target_share"]
     total = cov["total"]
@@ -95,8 +110,19 @@ def choose_target(cov, syl, cfg, rng=None, marks=None, difficulty=None, statemen
             if options:
                 options.sort(key=lambda sid: (cov["statements"].get(sid, 0), rng.random()))
                 sts.append(options[0])
-    return {"marks": marks, "difficulty": difficulty, "statements": sorted(sts),
-            "topics": sorted({s.rsplit(".", 1)[0] for s in sts})}
+    target = {"marks": marks, "difficulty": difficulty, "statements": sorted(sts),
+              "topics": sorted({s.rsplit(".", 1)[0] for s in sts})}
+    if command_terms:
+        terms = list(dict.fromkeys(t.strip().capitalize() for t in command_terms if t.strip()))
+        bad = [t for t in terms if allowed_terms is not None and t not in allowed_terms]
+        if bad:
+            raise ValueError(f"not allowed command terms: {', '.join(bad)}")
+        if len(terms) > MAX_TERMS:
+            raise ValueError(f"choose at most {MAX_TERMS} command terms")
+        target["command_terms"] = terms
+    elif allowed_terms:
+        target["suggested_terms"] = least_used_terms(cov, allowed_terms)
+    return target
 
 
 def choose_case_study(catalogue, target, cov, max_per_case, rng=None, reference=None):

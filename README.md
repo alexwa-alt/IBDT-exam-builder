@@ -99,11 +99,22 @@ the site has rebuilt with the new statuses. Rejected questions are hidden (tick 
 restore them), and their reasons are given to Gemini so it learns what the department doesn't want. Nobody needs
 to open the Drive folder, and the website can only change a question's status, never its text or files.
 
-**Generate questions…** (top right) asks for 1–5 new questions now, optionally choosing marks, difficulty,
-statements or a case study. They appear about 10 minutes later.
+**Generate questions…** (top right) asks for 1–5 new questions now. Choose what to base them on:
+- **A past-paper case study** (the usual way): optionally name one, or let the generator pick.
+- **A product photo**: upload a photo of any product. Gemini looks at it and writes the case study around that
+  product, and the photo is printed in the question as **Figure 1** (saved as `photo.jpg` beside
+  `question.yaml`). Optionally add a note about the product (its name, materials, users: anything Gemini can't
+  see) and a credit line printed under the photo. The page shrinks the photo (to at most about 1,000 pixels
+  across, roughly 45 KB) before sending it, because GitHub limits how much a website can send when it starts a
+  job. That is plenty for Gemini and for a printed figure about 9 cm wide.
 
-Both buttons start GitHub workflows. The request is encrypted with the staff password before it leaves the
-browser, so the public Actions page shows only scrambled text.
+Either way you can also choose **marks**, **difficulty**, up to 3 **command terms** (each must start at least
+one part) and up to 4 **syllabus statements**. The number beside each term and statement is how many questions in
+the bank already use it. Anything left blank is chosen to fill the bank's biggest gaps; when no command terms are
+chosen, Gemini is nudged towards the terms the bank uses least. Questions appear about 10 minutes later.
+
+Both buttons start GitHub workflows. The request (and any photo) is encrypted with the staff password before it
+leaves the browser, so the public Actions page shows only scrambled text.
 
 ### Setting up the generator (browser only)
 1. **Gemini key.** At <https://aistudio.google.com/apikey> create an API key. Add it as repository secret

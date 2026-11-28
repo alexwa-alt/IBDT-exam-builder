@@ -7,8 +7,14 @@ Anyone without the password sees only scrambled text.
 
 A request is base64(JSON {"v": 1, "salt": b64, "iterations": n, "data": b64(nonce + ciphertext)}).
 The decrypted JSON must hold "kind" and "sent" (milliseconds since 1970); requests older than two days are refused.
+
+A product photo (Generate questions -> "A product photo") travels in a second workflow input, because GitHub caps
+all of a run's inputs at 65,535 characters and the photo would not fit inside the JSON request as well. It is
+base64(nonce + ciphertext) of the JPEG bytes, encrypted with the same key as the request, and the request holds
+the photo's SHA-256 so a photo cannot be swapped for another one.
 """
 import base64
+import hashlib
 import json
 import os
 import sys
@@ -48,6 +54,31 @@ def open_request(text, kind, password=None):
     if not -600 < age < MAX_AGE_S:
         raise BadRequest("the request is too old; send it again from the site")
     return req
+
+
+def _envelope_key(request_text, password):
+    env = json.loads(base64.b64decode(request_text.strip()))
+    return derive_key(password, base64.b64decode(env["salt"]), int(env["iterations"]))
+
+
+def open_photo(photo_text, request_text, sha256, password=None):
+    """The JPEG bytes of a photo sent with a request (already opened with open_request)."""
+    password = password if password is not None else os.environ.get("SITE_PASSWORD", "")
+    try:
+        blob = base64.b64decode(photo_text.strip())
+        data = AESGCM(_envelope_key(request_text, password)).decrypt(blob[:12], blob[12:], None)
+    except Exception as e:  # noqa: BLE001
+        raise BadRequest("the photo could not be opened (wrong password or damaged)") from e
+    if hashlib.sha256(data).hexdigest() != str(sha256 or "").lower():
+        raise BadRequest("the photo does not belong to this request; send it again from the site")
+    return data
+
+
+def seal_photo(data, password, salt, iterations):
+    """The Python twin of the site's Vault.sealBytes, used by the tests."""
+    import secrets
+    nonce = secrets.token_bytes(12)
+    return base64.b64encode(nonce + AESGCM(derive_key(password, salt, iterations)).encrypt(nonce, data, None)).decode()
 
 
 def seal_request(req, password, salt, iterations):
