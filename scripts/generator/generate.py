@@ -112,6 +112,7 @@ def writer_prompt(target, cs, bank, cov, syl, exemplars):
               "page in past_paper_images): " + "; ".join(f"{f['caption']} (page {f['page']})" for f in figs)
               ) if figs else ""
     avoid = ("DO NOT REUSE these ids: " + ", ".join(sorted(cov["ids"])))
+    lo, hi = extra_checks.WORDS.get(target["marks"], (120, 350))
     feedback = ""
     if cov["feedback"]:
         feedback = ("REVIEWERS REJECTED THESE EARLIER DRAFTS; AVOID THE SAME PROBLEMS\n" +
@@ -121,7 +122,8 @@ def writer_prompt(target, cs, bank, cov, syl, exemplars):
         statements=statements_block(target["statements"], syl), case_study_block=case_study_block(cs, bank),
         images_line=images, rules=(PROMPTS / "rules.md").read_text(encoding="utf-8"),
         quality=(PROMPTS / "quality.md").read_text(encoding="utf-8"), avoid_block=avoid,
-        feedback_block=feedback, exemplars=exemplars or "(none available)")
+        feedback_block=feedback, exemplars=exemplars or "(none available)",
+        min_words=lo, max_words=hi, aim_words=min(lo + 40, hi))
 
 
 def reviewer_prompt(q, target, syl):
@@ -151,9 +153,17 @@ def write_one(gem, target, cs, bank, cov, syl, cts, cfg, exemplars, attachments,
             qid_holder["id"] = convert.unique_id(draft.title, cov["ids"])
         return convert.to_question(draft, qid_holder["id"], target=target, case_study=cs, model=gem.model)
 
+    # A draft that passes the checks must always get its review, so every writing call (first draft, repair or
+    # revision) keeps one call in reserve for the review that follows it.
+    def room(needed):
+        return gem.has_budget(needed) if hasattr(gem, "has_budget") else True
+
     # The specimen PDFs go with the first writer call only: repairs and revisions already have the draft (in the
     # specimen style) to work from, and leaving the PDFs out makes those calls much cheaper.
     def draft_until_valid(prompt, first=False):
+        if not room(2):
+            log["steps"].append({"step": "budget", "note": "no calls left to write and review a draft"})
+            return None
         draft = gem.ask((attachments if first else []) + [prompt], Draft)
         q = as_question(draft)
         for attempt in range(cfg["repair_attempts"] + 1):
@@ -162,6 +172,9 @@ def write_one(gem, target, cs, bank, cov, syl, cts, cfg, exemplars, attachments,
             if not errors:
                 return q
             if attempt == cfg["repair_attempts"]:
+                break
+            if not room(2):           # a repair plus the review it would need
+                log["steps"].append({"step": "budget", "note": "stopped repairing: no calls left for a review"})
                 break
             q = as_question(gem.ask([fix_prompt(base, q, errors)], Draft))
         log["last_draft"] = convert.to_yaml(q)
@@ -281,6 +294,10 @@ def main():
     added, stopped = [], False
     for n in range(count):
         cov = coverage.coverage(bank, syl)
+        if not gem.has_budget(2):
+            say("Not enough Gemini calls left in this run to write and review another question; stopping.")
+            summary("- Stopped: this run's Gemini call limit was reached.")
+            break
         if cov["today"] >= cfg["max_per_day"]:
             say(f"Daily limit of {cfg['max_per_day']} AI questions reached; stopping.")
             summary(f"- Stopped: the daily limit of {cfg['max_per_day']} AI questions was reached.")
@@ -332,7 +349,7 @@ def main():
         run["questions"].append(log)
 
     cost = gem.cost([cfg.get("price_per_million"), cfg.get("backup_price_per_million")])
-    run["gemini_calls"], run["tokens"] = gem.calls, gem.tokens
+    run["gemini_calls"], run["gemini_requests"], run["tokens"] = gem.calls, gem.attempts, gem.tokens
     run["input_tokens"], run["output_tokens"], run["estimated_cost_usd"] = gem.input_tokens, gem.output_tokens, \
         round(cost, 3)
     run["key_used"], run["model_used"] = gem.key_name, gem.model
@@ -346,10 +363,11 @@ def main():
             drive.write_json(cfg["drive"]["log_folder"], f"{stamp}.json", run)
         except Exception as e:  # noqa: BLE001
             say(f"::warning::Could not write the private log to Drive ({type(e).__name__}).")
-    say(f"Done: {len(added)} added; {gem.calls} Gemini calls, {gem.input_tokens} input + {gem.output_tokens} "
-        f"output tokens, about ${cost:.2f}.")
+    say(f"Done: {len(added)} added; {gem.calls} answered Gemini calls ({gem.attempts} requests including "
+        f"refusals and retries), {gem.input_tokens} input + {gem.output_tokens} output tokens, about ${cost:.2f}.")
     where = f"{args.out}/log_{stamp}.json" if args.dry_run else f"Drive {cfg['drive']['log_folder']}/{stamp}.json"
-    summary(f"\n{len(added)} question(s) added; {gem.calls} Gemini calls, about ${cost:.2f} "
+    summary(f"\n{len(added)} question(s) added; {gem.calls} answered Gemini calls ({gem.attempts} requests), "
+            f"about ${cost:.2f} "
             f"({gem.input_tokens} input and {gem.output_tokens} output tokens). Details (private) are in `{where}`.")
     gh_out = os.environ.get("GITHUB_OUTPUT")
     if gh_out:

@@ -29,6 +29,23 @@ $avoid_block
 
 $feedback_block
 
+BEFORE YOU RETURN, CHECK THESE (an automatic checker rejects the draft if any fails; these were the most
+common reasons earlier drafts were sent back)
+1. STIMULUS LENGTH. Count the words in the stimulus "text" and "bullets" blocks only (tables, captions and the
+   note do not count). The total must be between $min_words and $max_words words; aim for about $aim_words.
+   Past-paper case-study text is often shorter than this, so add accurate context about the users, setting,
+   materials or development process until you reach the minimum. Drafts of about 100-190 words have been
+   rejected for 10-mark questions.
+2. MARKING POINTS. Each part's answers list must have AT LEAST ONE MORE point than the part is worth:
+   [1] needs 2 or more points, [2] needs 3 or more, [3] needs 4 or more, [4] needs 5 or more (for Evaluate,
+   count the Strength, Limitation and Conclusion points). Count them for every part.
+3. COMMAND TERM FIRST. The first word of each question must be exactly its command_term (or the question starts
+   "Using Table 1, " followed by the command term). Only the allowed command terms may start a question: never
+   start with "Calculate", "Compare", "Suggest", "Discuss", "Determine" or any other word. To ask for a
+   calculation, put it inside an allowed term, e.g. "Using Table 1, outline the percentage saving ..." or
+   "Using Table 1, analyse ... including a calculation of ...".
+4. MARKS. Parts add up to exactly $marks, follow an allowed mark pattern, and no part is worth more than [4].
+
 EXAMPLES OF ACCEPTED QUESTIONS (as YAML; your output uses the JSON schema instead)
 $exemplars
 

@@ -375,3 +375,84 @@ def test_busy_model_falls_back(monkeypatch):
     gem = gemini.Gemini("busy-flash", busy_fallback="older-flash")
     assert gem.ask(["hello"], Review)["passed"]
     assert calls == ["busy-flash", "busy-flash", "older-flash"] and gem.model == "older-flash"
+
+
+# ---------------------------------------------------------------- call limit and reserve for the review
+class CappedGemini(FakeGemini):
+    """FakeGemini with a call cap, like the real wrapper's has_budget()."""
+
+    def __init__(self, replies, max_calls):
+        super().__init__(replies)
+        self.max_calls = max_calls
+
+    def has_budget(self, needed=1):
+        return self.calls + needed <= self.max_calls
+
+
+def test_repairs_stop_early_to_keep_a_call_for_the_review():
+    good_d = json.loads((ROOT / "tests" / "fixtures" / "good_draft.json").read_text())
+    bad = copy.deepcopy(good_d)
+    bad["parts"][2]["marks"] = 2
+    gem = CappedGemini([bad, bad, good_d, {"passed": True, "problems": [], "fixes": []}], max_calls=3)
+    log = {"steps": []}
+    q, result = generate.write_one(gem, TARGET, None, [], cov(), SYL, CTS, CFG, "", [], log)
+    # Old behaviour: a third call repaired it, then the review hit the cap and the good draft was lost.
+    assert q is None and result == "failed the checks" and gem.calls == 2
+    assert any(s["step"] == "budget" for s in log["steps"])
+
+
+def test_draft_that_passes_always_gets_its_review():
+    good_d = json.loads((ROOT / "tests" / "fixtures" / "good_draft.json").read_text())
+    bad = copy.deepcopy(good_d)
+    bad["parts"][2]["marks"] = 2
+    gem = CappedGemini([bad, good_d, {"passed": True, "problems": [], "fixes": []}], max_calls=3)
+    q, result = generate.write_one(gem, TARGET, None, [], cov(), SYL, CTS, CFG, "", [], {"steps": []})
+    assert result == "passed" and q and gem.calls == 3
+
+
+def test_refusals_and_retries_do_not_count_towards_the_cap(monkeypatch):
+    """A 402 on the main key and two 503s on the backup model are requests, not answered calls."""
+    import types as pytypes
+    import gemini
+    from google.genai import errors
+    from schema import Review
+    monkeypatch.setattr(gemini.time, "sleep", lambda s: None)
+    sent = []
+
+    class Client:
+        def __init__(self, key):
+            self.key = key
+            self.models = pytypes.SimpleNamespace(generate_content=self.generate)
+            self.files = pytypes.SimpleNamespace(upload=lambda **k: None)
+
+        def generate(self, model, contents, config):
+            sent.append((self.key, model))
+            if self.key == "main":
+                raise errors.APIError(402, {"error": {"code": 402, "message": "Your prepayment credits are depleted.",
+                                                      "status": "RESOURCE_EXHAUSTED"}})
+            if model == "busy-flash":
+                raise errors.ServerError(503, {"error": {"code": 503, "message": "high demand",
+                                                         "status": "UNAVAILABLE"}})
+            usage = pytypes.SimpleNamespace(total_token_count=1, prompt_token_count=1, candidates_token_count=0,
+                                            thoughts_token_count=0)
+            return pytypes.SimpleNamespace(parsed={"passed": True, "problems": [], "fixes": []},
+                                           usage_metadata=usage)
+
+    monkeypatch.setenv("GEMINI_API_KEY", "main")
+    monkeypatch.setenv("GEMINI_API_KEY2", "backup")
+    monkeypatch.setattr(gemini.Gemini, "_make_client", lambda self, key: Client(key))
+    gem = gemini.Gemini("pro", max_calls=1, backup_model="busy-flash", backup_busy_fallback="older-flash")
+    assert gem.ask(["hello"], Review)["passed"]
+    assert len(sent) == 4 and gem.attempts == 4 and gem.calls == 1
+    assert not gem.has_budget(1)
+    with pytest.raises(gemini.QuotaError, match="limit of 1"):
+        gem.ask(["again"], Review)
+
+
+def test_writer_prompt_states_the_checker_limits():
+    t10 = dict(TARGET, marks=10)
+    text = generate.writer_prompt(t10, None, [], cov(), SYL, "")
+    lo, hi = extra_checks.WORDS[10]
+    assert f"between {lo} and {hi} words" in text
+    assert "never" in text and '"Calculate"' in text
+    assert "[4] needs 5 or more" in text

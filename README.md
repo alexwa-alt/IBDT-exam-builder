@@ -156,7 +156,14 @@ and Catalogue jobs. To cancel it, remove *DT question generator* at <https://mya
 If Google ever refuses it (the run says so), repeat steps 3–4.
 
 To change the model, the number per night, the daily cap or the mix of marks and difficulty, edit
-`generator.yaml`. To change the time, edit the `cron` line in `.github/workflows/generate.yml`.
+`generator.yaml`. To change the time, edit the `cron` line in `.github/workflows/generate.yml`. GitHub often
+starts scheduled runs late, so any run that adds a question (nightly or on demand) rebuilds the site straight
+away rather than waiting for the next nightly build.
+
+**Call limit.** `max_calls_per_question` caps the Gemini calls that come back with an answer (the ones Google
+bills). Refusals (out of credit, "model busy") and their retries don't count towards it; the log reports them
+separately as `gemini_requests`. One call is always kept back for the review, so a draft that passes the checks
+is never thrown away just before it is reviewed.
 
 ## Testing on a computer (for developers)
 

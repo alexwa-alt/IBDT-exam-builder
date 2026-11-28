@@ -75,8 +75,10 @@ jobs:
           [ -n "$REQUEST" ] && args+=(--request "$REQUEST")
           python scripts/generator/generate.py "${args[@]}"
 
-      - name: Rebuild the site now (on-demand runs only)
-        if: github.event_name == 'workflow_dispatch' && steps.gen.outputs.added != '0' && steps.gen.outputs.added != ''
+      # Runs after nightly runs too: GitHub often starts scheduled runs hours late (after the 02:17 build), so
+      # without this a nightly question would not reach the site until the following night.
+      - name: Rebuild the site now (whenever a question was added)
+        if: steps.gen.outputs.added != '0' && steps.gen.outputs.added != ''
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run build.yml --repo "$GITHUB_REPOSITORY" --ref "$GITHUB_REF_NAME"
