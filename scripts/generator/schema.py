@@ -35,6 +35,8 @@ class Draft(BaseModel):
     parts: list[Part]
     past_paper_images: Optional[str] = Field(
         None, description="Past-paper images that would improve this question, with page numbers, if any")
+    figure_caption: Optional[str] = Field(
+        None, description="Only when a product photograph is attached: its caption, starting 'Figure 1: '")
 
 
 class Review(BaseModel):

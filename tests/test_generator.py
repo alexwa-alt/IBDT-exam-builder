@@ -456,3 +456,127 @@ def test_writer_prompt_states_the_checker_limits():
     assert f"between {lo} and {hi} words" in text
     assert "never" in text and '"Calculate"' in text
     assert "[4] needs 5 or more" in text
+
+
+# ---------------------------------------------------------------- product photo and command terms
+def _jpeg(path, size=(400, 300)):
+    from PIL import Image
+    Image.new("RGB", size, (200, 120, 40)).save(path, "JPEG")
+    return path
+
+
+def _photo(tmp_path):
+    import hashlib
+    path = _jpeg(tmp_path / "photo.jpg")
+    return {"path": path, "upload": "PHOTO", "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+            "note": "A camping stool made by the students", "credit": "Photo: A. Teacher"}
+
+
+def _photo_draft():
+    d = json.loads((ROOT / "tests" / "fixtures" / "good_draft.json").read_text())
+    d["figure_caption"] = "The folding stool in use"
+    d["parts"][1]["question"] = "Outline one benefit of testing the stool shown in Figure 1 with users at a campsite."
+    return d
+
+
+def test_photo_round_trip_and_swap_refused():
+    import hashlib
+    import time
+    salt = os.urandom(16)
+    data = b"\xff\xd8 not really a jpeg"
+    req = {"kind": "generate", "sent": time.time() * 1000, "photo": {"sha256": hashlib.sha256(data).hexdigest()}}
+    text = request_crypto.seal_request(req, "pw-123456", salt, 100_000)
+    photo = request_crypto.seal_photo(data, "pw-123456", salt, 100_000)
+    opened = request_crypto.open_request(text, "generate", "pw-123456")
+    assert request_crypto.open_photo(photo, text, opened["photo"]["sha256"], "pw-123456") == data
+    other = request_crypto.seal_photo(b"another photo", "pw-123456", salt, 100_000)
+    with pytest.raises(request_crypto.BadRequest):
+        request_crypto.open_photo(other, text, opened["photo"]["sha256"], "pw-123456")
+    with pytest.raises(request_crypto.BadRequest):
+        request_crypto.open_photo(photo, text, opened["photo"]["sha256"], "wrong-pass")
+
+
+def test_photo_becomes_figure_1(tmp_path):
+    photo = _photo(tmp_path)
+    q = convert.to_question(Draft.model_validate(_photo_draft()), "stool", target=TARGET, case_study=None,
+                            model="m", photo=photo)
+    assert [list(b)[0] for b in q["stimulus"]][:2] == ["text", "figure"]
+    fig = q["stimulus"][1]
+    assert fig["figure"] == "photo.jpg" and fig["caption"] == "Figure 1: The folding stool in use"
+    assert fig["credit"] == "Photo: A. Teacher" and q["source"]["photo"] == photo["sha256"][:16]
+    assert convert.photo_caption("Figure 1 - a drill") == "Figure 1: A drill"
+    assert convert.photo_caption(None) == "Figure 1: The product"
+    assert generate.validate(q, SYL, CTS, cov(), CFG, {"photo.jpg": photo["path"]}) == []
+    assert "figure file photo.jpg is missing" in " ".join(generate.validate(q, SYL, CTS, cov(), CFG))
+
+
+def test_photo_question_must_refer_to_figure(tmp_path):
+    photo = _photo(tmp_path)
+    d = _photo_draft()
+    d["parts"][1]["question"] = "Outline one benefit of testing the prototypes with users at a campsite."
+    q = convert.to_question(Draft.model_validate(d), "stool", target=TARGET, case_study=None, model="m", photo=photo)
+    assert any("Figure 1 is not referred to" in e for e in
+               generate.validate(q, SYL, CTS, cov(), CFG, {"photo.jpg": photo["path"]}))
+
+
+def test_photo_sent_with_first_draft_and_every_review(tmp_path):
+    photo = _photo(tmp_path)
+    no = {"passed": False, "problems": ["too easy"], "fixes": ["add a judgement"]}
+    yes = {"passed": True, "problems": [], "fixes": []}
+
+    class Recording(FakeGemini):
+        def ask(self, contents, schema, temperature=None):
+            self.seen = getattr(self, "seen", []) + [contents]
+            return super().ask(contents, schema, temperature)
+
+    gem = Recording([_photo_draft(), no, _photo_draft(), yes])   # writer, review, revision, review
+    q, result = generate.write_one(gem, TARGET, None, [], cov(), SYL, CTS, CFG, "", ["SPECIMEN"], {"steps": []},
+                                   photo)
+    assert result == "passed" and q["stimulus"][1]["figure"] == "photo.jpg"
+    assert ["PHOTO" in c for c in gem.seen] == [True, True, False, True]
+    assert "PRODUCT IN THE ATTACHED PHOTOGRAPH" in gem.seen[0][-1] and "camping stool made by" in gem.seen[0][-1]
+    assert "do not add a figure block" in gem.seen[0][-1]
+
+
+def test_command_terms_target_and_check():
+    t = coverage.choose_target(cov(), SYL, CFG, marks=6, command_terms=["explain", "State"],
+                               allowed_terms=["Explain", "Outline", "State"])
+    assert t["command_terms"] == ["Explain", "State"] and "suggested_terms" not in t
+    with pytest.raises(ValueError):
+        coverage.choose_target(cov(), SYL, CFG, command_terms=["Discuss"], allowed_terms=["Explain"])
+    with pytest.raises(ValueError):
+        coverage.choose_target(cov(), SYL, CFG, command_terms=["A", "B", "C", "D"], allowed_terms=list("ABCD"))
+    c = cov()
+    c["terms"].update({"Explain": 5, "State": 2})
+    t2 = coverage.choose_target(c, SYL, CFG, allowed_terms=["Explain", "Outline", "State", "Analyse"])
+    assert t2["suggested_terms"] == ["Analyse", "Outline", "State"]
+    assert "the bank has few questions using Analyse" in generate.writer_prompt(t2, None, [], c, SYL, "")
+
+    q = question()                                     # parts use State, Outline, Explain
+    assert generate.validate(q, SYL, CTS, cov(), CFG, target=dict(TARGET, command_terms=["Explain"])) == []
+    errs = generate.validate(q, SYL, CTS, cov(), CFG, target=dict(TARGET, command_terms=["Evaluate"]))
+    assert any("asked for the command term 'Evaluate'" in e for e in errs)
+    assert "Start at least one part with each of them" in generate.writer_prompt(
+        dict(TARGET, command_terms=["Evaluate"]), None, [], cov(), SYL, "")
+    assert "Discuss" not in generate.allowed_terms(CTS) and "Analyse" in generate.allowed_terms(CTS)
+
+
+def test_options_from_request_with_photo(tmp_path, monkeypatch):
+    import argparse
+    import hashlib
+    import time
+    salt = os.urandom(16)
+    data = _jpeg(tmp_path / "in.jpg").read_bytes()
+    req = {"kind": "generate", "sent": time.time() * 1000, "by": "Alex", "count": 2, "command_terms": "Explain,State",
+           "case_study": "IGNORED", "photo": {"sha256": hashlib.sha256(data).hexdigest(), "note": "n", "credit": None}}
+    monkeypatch.setenv("SITE_PASSWORD", "pw-123456")
+    monkeypatch.setenv("PHOTO", request_crypto.seal_photo(data, "pw-123456", salt, 100_000))
+    args = argparse.Namespace(request=request_crypto.seal_request(req, "pw-123456", salt, 100_000))
+    work = tmp_path / "work"
+    work.mkdir()
+    assert generate.options_from_request(args, work) == "Alex"
+    assert Path(args.photo).read_bytes() == data and args.case_study is None and args.count == 2
+    assert args.command_terms == "Explain,State" and args.product_note == "n" and args.photo_credit is None
+    monkeypatch.setenv("PHOTO", "")
+    with pytest.raises(ValueError):
+        generate.options_from_request(argparse.Namespace(request=args.request), work)

@@ -125,17 +125,51 @@
     <div class="viewer-head"><h2>Generate questions with Gemini</h2>
       <button type="button" id="gen-close" aria-label="Close">✕</button></div>
     <div class="gen-body">
-      <p class="hint">Gemini writes new SL Paper 2 questions from past-paper case studies. They are checked
-        automatically and added as <b>drafts</b>, marked AI-written, for review. Leave a box blank to let the
-        generator choose what the bank needs most.</p>
-      <label class="field">How many <select name="gen-count"><option>1</option><option>2</option><option>3</option>
-        <option>4</option><option>5</option></select></label>
-      <label class="field">Marks <select name="gen-marks"><option value="">Any</option><option>6</option>
-        <option>10</option></select></label>
-      <label class="field">Difficulty <select name="gen-difficulty"><option value="">Any</option>
-        <option value="1">1 Foundation</option><option value="2">2 Standard</option><option value="3">3 Challenging</option></select></label>
-      <label class="field">Syllabus statements <input name="gen-statements" type="text" placeholder="e.g. A2.1.3, C1.2.1"></label>
-      <label class="field">Past-paper case study <input name="gen-case" type="text" placeholder="e.g. 26M.2.SL.TZ1.6"></label>
+      <p class="hint">Gemini writes new SL Paper 2 questions. They are checked automatically and added as
+        <b>drafts</b>, marked AI-written, for review.</p>
+      <fieldset class="gen-mode"><legend>Base the questions on</legend>
+        <div class="checks">
+          <label class="check"><input type="radio" name="gen-mode" value="case" checked> A past-paper case study</label>
+          <label class="check"><input type="radio" name="gen-mode" value="photo"> A product photo</label>
+        </div>
+      </fieldset>
+      <div id="gen-photo-box" class="gen-photo" hidden>
+        <label class="field">Photo of the product
+          <input type="file" id="gen-photo" accept="image/jpeg,image/png,image/webp,image/heic,image/*"></label>
+        <p class="hint">Gemini writes the case study around this product, and the photo is printed in the question
+          as Figure 1. It is shrunk (to about 1,000 pixels across at most) and encrypted before it leaves this page.</p>
+        <div id="gen-preview" class="gen-preview" hidden>
+          <img id="gen-preview-img" alt="The photo that will be sent">
+          <p id="gen-photo-info" class="hint"></p>
+        </div>
+        <label class="field">About the product <span class="muted">(optional)</span>
+          <textarea name="gen-note" rows="3" maxlength="600"
+            placeholder="e.g. its name, materials, who it is for, anything Gemini can't see in the photo"></textarea></label>
+        <label class="field">Photo credit <span class="muted">(optional, printed under the photo)</span>
+          <input name="gen-credit" type="text" maxlength="120" placeholder="e.g. Photo: A. Teacher"></label>
+      </div>
+      <label class="field" id="gen-case-field">Past-paper case study <span class="muted">(optional)</span>
+        <input name="gen-case" type="text" placeholder="e.g. 26M.2.SL.TZ1.6"></label>
+
+      <fieldset><legend>Options</legend>
+        <p class="hint">All optional. Anything left blank is chosen to fill the bank's biggest gaps.</p>
+        <div class="gen-row">
+          <label class="field">How many <select name="gen-count"><option>1</option><option>2</option>
+            <option>3</option><option>4</option><option>5</option></select></label>
+          <label class="field">Marks <select name="gen-marks"><option value="">Any</option><option>6</option>
+            <option>10</option></select></label>
+          <label class="field">Difficulty <select name="gen-difficulty"><option value="">Any</option>
+            <option value="1">1 Foundation</option><option value="2">2 Standard</option>
+            <option value="3">3 Challenging</option></select></label>
+        </div>
+        <div class="field">Command terms <span class="muted" id="gen-terms-count">(up to 3; each starts at least one part)</span>
+          <div class="checks gen-terms" id="gen-terms"></div></div>
+        <div class="field">Syllabus statements <span class="muted" id="gen-statements-count">(up to 4)</span>
+          <input type="search" id="gen-statement-search" placeholder="Search, e.g. A2.1 or ergonomics"
+            aria-label="Search the syllabus statements">
+          <div class="gen-statements" id="gen-statements"></div></div>
+        <p class="hint">The number after each term or statement is how many questions in the bank already use it.</p>
+      </fieldset>
       <label class="field">Your name <input name="gen-name" id="gen-name" type="text" maxlength="60"></label>
       <button type="submit" class="primary" id="gen-submit">Generate</button>
       <p id="gen-msg" class="msg" role="status"></p>

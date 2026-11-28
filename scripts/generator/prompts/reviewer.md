@@ -4,6 +4,7 @@ department rejected earlier drafts for being too easy or for being recall questi
 
 The draft targets: $marks marks, difficulty $difficulty, statements $statement_ids.
 $statements
+$extra_targets
 
 $rules
 

@@ -56,8 +56,22 @@ def unique_id(title, used):
     return qid
 
 
-def to_question(draft, qid, *, target, case_study, model):
-    """draft: schema.Draft (or a dict of the same shape). Returns a dict in FORMAT.md order."""
+PHOTO_FILE = "photo.jpg"
+PHOTO_WIDTH_MM = 90
+
+
+def photo_caption(text):
+    """'Figure 1: ...' from Gemini's caption, whatever it wrote at the start."""
+    t = re.sub(r"^\s*(figure|fig\.?)\s*\d*\s*[:.\-–]?\s*", "", clean(text or ""), flags=re.I).strip()
+    return "Figure 1: " + (t[:1].upper() + t[1:] if t else "The product")
+
+
+def to_question(draft, qid, *, target, case_study, model, photo=None):
+    """draft: schema.Draft (or a dict of the same shape). Returns a dict in FORMAT.md order.
+
+    photo: for a question based on a product photo, {"sha256": ..., "credit": ...}. The photo becomes Figure 1,
+    after the first paragraph of the stimulus, from the file photo.jpg saved beside question.yaml.
+    """
     d = draft if isinstance(draft, dict) else draft.model_dump()
     stimulus = []
     for b in d["stimulus"]:
@@ -74,6 +88,12 @@ def to_question(draft, qid, *, target, case_study, model):
             rows = [r + [""] * (n - len(r)) for r in rows]
             stimulus.append({"table": {"caption": clean(b.get("table_caption") or ""),
                                        "widths_mm": table_widths(rows), "rows": rows}})
+    if photo:
+        fig = {"figure": PHOTO_FILE, "caption": photo_caption(d.get("figure_caption")), "width_mm": PHOTO_WIDTH_MM}
+        if photo.get("credit"):
+            fig["credit"] = clean(photo["credit"])
+        first_text = next((i for i, b in enumerate(stimulus) if "text" in b), -1)
+        stimulus.insert(first_text + 1, fig)
     parts = []
     for p in d["parts"]:
         parts.append({"label": str(p["label"]).strip("() ").lower(), "marks": int(p["marks"]),
@@ -85,6 +105,8 @@ def to_question(draft, qid, *, target, case_study, model):
         source = {"type": "past-paper case study", "reference": case_study["reference"]}
     else:
         source = {"type": "original"}
+    if photo:
+        source["photo"] = photo["sha256"][:16]     # groups questions written on the same photo
     note = clean(d.get("source_note") or "")
     if d.get("past_paper_images"):
         note += " Past-paper images that could be added: " + clean(d["past_paper_images"])
@@ -94,6 +116,8 @@ def to_question(draft, qid, *, target, case_study, model):
     source["model"] = model
     source["target"] = {"statements": target["statements"], "marks": target["marks"],
                         "difficulty": target["difficulty"]}
+    if target.get("command_terms"):
+        source["target"]["command_terms"] = list(target["command_terms"])
     return {"id": qid, "title": clean(d["title"]), "level": "SL", "paper": 2, "marks": int(d["marks"]),
             "difficulty": int(d["difficulty"]), "status": "draft", "source": source,
             "figure_rights": "original", "stimulus": stimulus, "parts": parts}

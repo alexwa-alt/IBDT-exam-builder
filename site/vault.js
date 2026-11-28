@@ -119,6 +119,18 @@ const Vault = (() => {
       return btoa(JSON.stringify(env));
     },
 
+    // Encrypt raw bytes (the Generate dialog's product photo) with the same key: base64(nonce + ciphertext).
+    // It travels beside a sealed request, whose salt and iterations the workflow uses to rebuild the key.
+    async sealBytes(bytes) {
+      const nonce = crypto.getRandomValues(new Uint8Array(12));
+      const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv: nonce }, key, bytes));
+      const blob = new Uint8Array(12 + ct.byteLength);
+      blob.set(nonce); blob.set(ct, 12);
+      let s = '';
+      for (let i = 0; i < blob.length; i += 8192) s += String.fromCharCode(...blob.subarray(i, i + 8192));
+      return btoa(s);
+    },
+
     // A blob: URL (temporary in-memory address) for an image, for <img src>.
     imageURL(name) {
       if (!urls.has(name)) {

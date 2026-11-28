@@ -147,7 +147,23 @@ legend { font-size: .85rem; font-weight: 600; padding: 0 .4rem 0 0; }
 .reject-row .field { flex: 1; margin: 0; }
 button.danger { color: var(--bad); border-color: var(--bad); }
 .gen-form { margin: 0; }
-.gen-body { padding: 1rem; display: grid; gap: .5rem; max-width: 520px; }
+.gen-body { padding: 1rem; display: grid; gap: .5rem; max-width: 620px; }
+.gen-body fieldset .field { margin-bottom: .6rem; }
+.gen-body legend { font-weight: 600; font-size: .9rem; }
+.gen-body textarea { width: 100%; margin-top: .25rem; font: inherit; font-weight: 400; box-sizing: border-box; }
+.gen-row { display: flex; flex-wrap: wrap; gap: .25rem 1rem; }
+.gen-photo { border-left: 3px solid var(--accent); padding-left: .75rem; }
+.gen-preview { display: flex; gap: .75rem; align-items: flex-start; margin-bottom: .5rem; }
+.gen-preview img { max-width: 160px; max-height: 120px; border: 1px solid var(--line); border-radius: 4px; }
+.gen-terms .check { font-weight: 400; min-width: 8.5rem; }
+.gen-statements {
+  max-height: 220px; overflow-y: auto; border: 1px solid var(--line); border-radius: 6px; padding: .3rem .5rem;
+  margin-top: .3rem; font-weight: 400;
+}
+.gen-statements details { margin: .15rem 0; }
+.gen-statements summary { cursor: pointer; font-size: .85rem; }
+.gen-statements .check { display: flex; gap: .35rem; align-items: baseline; font-size: .82rem; margin: .2rem 0 .2rem 1rem; }
+.gen-body .muted { font-weight: 400; }
 .card-actions { margin-top: auto; padding-top: .4rem; display: flex; gap: .5rem; }
 .card-actions button { flex: 1; }
 .empty-state {
