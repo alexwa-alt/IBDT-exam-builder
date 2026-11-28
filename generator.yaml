@@ -20,7 +20,7 @@ max_output_tokens: 16000
 # Limits, so a runaway run (or a button pressed many times) cannot use up the Gemini quota.
 max_per_run: 5            # questions per run
 max_per_day: 8            # AI questions added to the bank per day (counted from source.generated_on)
-max_calls_per_question: 6 # writer + repairs + reviewer + revision
+max_calls_per_question: 6 # answered calls: writer + repairs + reviewer + revision (refusals/retries don't count)
 repair_attempts: 2        # times Gemini may fix checker errors before the draft is thrown away
 
 # Case studies: how many questions may share one past-paper case study. The catalogue holds a limited number

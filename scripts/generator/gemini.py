@@ -51,7 +51,9 @@ class Gemini:
         self.backup_model = backup_model
         # Model to switch to when Google says the current one is busy (503), for the main and the backup key.
         self.busy_fallbacks = [busy_fallback, backup_busy_fallback]
-        self.max_calls, self.calls = max_calls, 0
+        # calls = requests that came back with an answer (these are what Google bills and what the cap counts).
+        # attempts = every request sent, including refusals (402 credit, 503 busy) and retries; reported only.
+        self.max_calls, self.calls, self.attempts = max_calls, 0, 0
         self.tokens = self.input_tokens = self.output_tokens = 0
         self.usage = []                        # [input, output] tokens for each key, for the cost estimate
         self.key_index = -1
@@ -94,6 +96,10 @@ class Gemini:
         print(f"::warning::{self.model} is busy (Google 503); switching to {fallback}.", flush=True)
         self.model = fallback
         return True
+
+    def has_budget(self, needed=1):
+        """True if this run's call cap still allows `needed` more answered calls."""
+        return self.calls + needed <= self.max_calls
 
     @property
     def key_name(self):
@@ -139,6 +145,8 @@ class Gemini:
         from google.genai import errors, types
         if self.calls >= self.max_calls:
             raise QuotaError(f"reached this run's limit of {self.max_calls} Gemini calls")
+        if self.attempts >= 4 * self.max_calls:   # backstop: failed requests are not capped above
+            raise QuotaError(f"made {self.attempts} Gemini requests without enough answers; stopping")
         config = types.GenerateContentConfig(
             response_mime_type="application/json", response_schema=schema,
             temperature=self.temperature if temperature is None else temperature,
@@ -146,9 +154,10 @@ class Gemini:
         delay, attempt, busy = 20, 0, 0
         while attempt < 4:
             parts = [self._resolve(c) for c in contents]
-            self.calls += 1
+            self.attempts += 1
             try:
                 r = self.client.models.generate_content(model=self.model, contents=parts, config=config)
+                self.calls += 1               # only answered requests count towards the cap
             except errors.APIError as e:
                 code = getattr(e, "code", None)
                 if out_of_credit(e) or daily_quota(e):
